@@ -449,6 +449,7 @@ class BaseCalculator(GetPropertiesMixin, TensorLike):
         cache: CalculatorCache | None = None,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
+        tensor_dict: dict[str, Any] | None = None , # Yufan modification
         **kwargs: Any,
     ) -> None:
         """
@@ -475,6 +476,10 @@ class BaseCalculator(GetPropertiesMixin, TensorLike):
         dtype : torch.dtype | None, optional
             Data type of the tensor. If ``None`` (default), the data type is
             inferred.
+
+        tensor_dict: dict[str, Any] | None = None 
+        # Yufan modification
+
         """
         timer.start("Calculator", parent_uid="Setup")
 
@@ -519,6 +524,15 @@ class BaseCalculator(GetPropertiesMixin, TensorLike):
             numbers, par, self.opts.batch_mode
         )
 
+        # import tensor_dict as global variables, Yufan modification
+        if tensor_dict is not None:
+            for key, value in tensor_dict.items(): # make global variables
+                globals()[key] = value
+        else:
+            print("If you see this, Yufan modification is installed.")
+            pass        
+        
+        
         ################
         # INTERACTIONS #
         ################

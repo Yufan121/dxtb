@@ -101,7 +101,7 @@ def get_elem_param(
     ----------
     numbers : Tensor
         Atomic numbers for all atoms in the system (shape: ``(..., nat)``).
-    par : dict[str, Element]
+    par : dict[str, Element] 
         Parametrization of elements.
     key : str
         Name of the quantity to obtain (e.g. gam3 for Hubbard derivatives).
