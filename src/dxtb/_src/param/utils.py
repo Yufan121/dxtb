@@ -150,6 +150,17 @@ def get_elem_param(
         for val in vals:
             l.append(val)
 
+    ### Yufan modification
+    # can we access global tensor_dict here?
+    from dxtb._src.calculators.types import base
+
+    # Access the global tensor_dict
+    if hasattr(base, 'tensor_dict') and base.tensor_dict is not None:
+        print(f"base.tensor_dict is {base.tensor_dict}")
+    else:
+        print("base.tensor_dict is None")
+
+
     return torch.tensor(
         l,
         device=device,

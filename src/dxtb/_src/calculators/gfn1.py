@@ -51,6 +51,7 @@ class GFN1Calculator(Calculator):
             list[Interaction] | tuple[Interaction] | Interaction | None
         ) = None,
         opts: dict[str, Any] | Config | None = None,
+        tensor_dict: dict[str, Any] | None = None , # Yufan modification
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
     ) -> None:
@@ -63,6 +64,7 @@ class GFN1Calculator(Calculator):
             classical=classical,
             interaction=interaction,
             opts=opts,
+            tensor_dict=tensor_dict, # Yufan modification
             device=device,
             dtype=dtype,
         )

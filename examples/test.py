@@ -10,9 +10,11 @@ positions = torch.tensor([[0.0, 0.0, 0.0], [0.0, 0.0, 1.5], [0.0, 0.0, 2.5]],
 
 # Yufan modification
 tensor = torch.tensor([1.0, 2.0, 3.0], **dd)
+tensor_dict = {"test": tensor}
 
 # instantiate a calculator
-calc = dxtb.calculators.GFN1Calculator(numbers, **dd)
+calc = dxtb.calculators.GFN1Calculator(numbers, tensor_dict=tensor_dict, 
+                                       **dd)
 
 # compute the energy
 pos = positions.clone().requires_grad_(True)

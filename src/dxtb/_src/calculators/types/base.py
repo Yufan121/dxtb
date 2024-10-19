@@ -524,13 +524,17 @@ class BaseCalculator(GetPropertiesMixin, TensorLike):
             numbers, par, self.opts.batch_mode
         )
 
-        # import tensor_dict as global variables, Yufan modification
+        ##### import tensor_dict as global variables, Yufan modification
         if tensor_dict is not None:
-            for key, value in tensor_dict.items(): # make global variables
-                globals()[key] = value
+            globals()['tensor_dict'] = tensor_dict
+            # for key, value in tensor_dict.items(): # make global variables
+            #     # globals()[key] = value
+            #     global key
+            #     key = value
+            #     print(f"Global variable {key} is created.")
         else:
-            print("If you see this, Yufan modification is installed.")
-            pass        
+            # print("If you see this, Yufan modification is installed.")
+            pass
         
         
         ################
