@@ -40,7 +40,7 @@ print("Calculating forces manually with :func:`torch.autograd.grad`.\n")
 dxtb.timer.reset()
 
 # Yufan modification
-tensor = torch.tensor([1.0, 2.0, 3.0], **dd)
+tensor_ = torch.tensor([1.0, 2.0, 3.0], **dd)
 
 calc = dxtb.Calculator(numbers, dxtb.GFN1_XTB, opts=opts, **dd)
 pos = positions.clone().requires_grad_(True)
