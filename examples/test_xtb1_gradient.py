@@ -12,11 +12,10 @@ positions = torch.tensor([[0.0, 0.0, 0.0], [0.0, 0.0, 1.5], [0.0, 0.0, 2.5]],
 tensor_zeff = torch.tensor([1.0, 2.0, 3.0], requires_grad=True, **dd)
 tensor_arep = torch.tensor([1.0, 2.0, 3.0], requires_grad=True, **dd)
 tensor_en = torch.tensor([1.0, 2.0, 3.0], requires_grad=True, **dd)
-tensor_gam = torch.tensor([1.0, 2.0, 3.0], requires_grad=True, **dd)
-tensor_dict = {"zeff": tensor_zeff, "arep": tensor_arep, "en": tensor_en, "gam": tensor_gam}
+tensor_dict = {"zeff": tensor_zeff, "arep": tensor_arep, "en": tensor_en}
 
 # instantiate a calculator
-calc = dxtb.calculators.GFN1Calculator(numbers, tensor_dict=tensor_dict,
+calc = dxtb.calculators.GFN1Calculator(numbers, tensor_dict=tensor_dict, 
                                        **dd)
 
 # compute the energy
@@ -29,7 +28,6 @@ energy = calc.get_energy(pos)
 (g_zeff,) = torch.autograd.grad(energy, tensor_zeff, retain_graph=True)
 (g_arep,) = torch.autograd.grad(energy, tensor_arep, retain_graph=True)
 (g_en,) = torch.autograd.grad(energy, tensor_en, retain_graph=True)
-(g_gam,) = torch.autograd.grad(energy, tensor_gam, retain_graph=True)
 
 # Alternatively, forces can directly be requested from the calculator.
 # (Don't forget to manually reset the calculator when the inputs are identical.)
@@ -41,21 +39,36 @@ assert torch.equal(forces, -g)
 calc.reset() 
 
 
-print("\n")
+
 print(f"derivative of energy w.r.t. positions: {g}")
 ### YUFAN MODIFICATION
-print(f"derivative of energy w.r.t. zeff: {g_zeff}")
-print(f"derivative of energy w.r.t. arep: {g_arep}")
-print(f"derivative of energy w.r.t. en: {g_en}")
-print(f"derivative of energy w.r.t. gam: {g_gam}")
+print(f"derivative of energy w.r.t. zeff: {g_zeff}, \nderivative of energy w.r.t. arep: {g_arep}, \nderivative of energy w.r.t. en: {g_en}")
 
 
+# delete the calculator
+# del calc
 
+# remove dxtb from the namespace
+# del dxtb
 
+# # re-import dxtb
+# import importlib
+# importlib.reload(dxtb)
+
+### Yufan modification
+# test fixed param output
 print(f"\n")
 print(f"Fixed param testing start")
+# calc1 = dxtb.calculators.GFN1Calculator(numbers, **dd)
 
-calc1 = dxtb.calculators.GFN1Calculator(numbers, tensor_dict=None, **dd)
+# # explicitly reset tensor_dict
+# from dxtb._src.calculators.types.base import reset_tensor_dict
+# reset_tensor_dict()
+import copy
+calc1 = copy.deepcopy(dxtb.calculators.GFN1Calculator(numbers, tensor_dict=None, **dd))
+# calc1.reset()
+# import sys
+# print(sys.modules['dxtb'])
 
 positions1 = torch.tensor([[0.0, 0.0, 0.0], [0.0, 0.0, 1.5], [0.0, 0.0, 2.5]],
                          **dd)

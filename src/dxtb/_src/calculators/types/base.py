@@ -453,7 +453,7 @@ class BaseCalculator(GetPropertiesMixin, TensorLike):
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
         tensor_dict: dict[str, Any] | None = None , # Yufan modification
-        **kwargs: Any,
+        **kwargs: Any, # this line means that the function can take any number of keyword arguments
     ) -> None:
         """
         Instantiate the Calculator object with the following parameters:
@@ -536,7 +536,7 @@ class BaseCalculator(GetPropertiesMixin, TensorLike):
             #     key = value
             #     print(f"Global variable {key} is created.")
         else:
-            # print("If you see this, Yufan modification is installed.")
+            print("**** Using inner fixed param, not using machine-learning enabled param ****")
             pass
         
         
@@ -587,7 +587,7 @@ class BaseCalculator(GetPropertiesMixin, TensorLike):
         )
         dispersion = (
             new_dispersion(numbers, par, **dd)
-            if not {"all", "disp"} & set(self.opts.exclude)
+            if not {"all", "disp"} & set(self.opts.exclude) 
             else None
         )
         repulsion = (

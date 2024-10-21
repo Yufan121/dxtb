@@ -156,8 +156,7 @@ def get_elem_param(
     tensor_dict = types.base.tensor_dict
     # Access the global tensor_dict
     if tensor_dict is not None:
-        # print(f"tensor_dict is {tensor_dict}")
-        # print function caller 
+        # print function caller
         import inspect
         print(inspect.stack()[1].function)
         
@@ -184,8 +183,8 @@ def get_elem_param(
             pass
         
     else:
-        print("tensor_dict is None")
-
+        # print("tensor_dict is None")
+        pass
 
     return torch.tensor(
         l,
