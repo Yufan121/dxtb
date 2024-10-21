@@ -152,39 +152,39 @@ def get_elem_param(
 
     ### Yufan modification
     # can we access global tensor_dict here?
-    from dxtb._src.calculators.types import base
-
+    import dxtb._src.calculators.types as types
+    tensor_dict = types.base.tensor_dict
     # Access the global tensor_dict
-    if hasattr(base, 'tensor_dict') and base.tensor_dict is not None:
-        # print(f"base.tensor_dict is {base.tensor_dict}")
+    if tensor_dict is not None:
+        # print(f"tensor_dict is {tensor_dict}")
         # print function caller 
         import inspect
         print(inspect.stack()[1].function)
         
         # get the tensor from the tensor_dict
-        if key in base.tensor_dict:
-            print(f"*****INFO*****: key {key} in base.tensor_dict")
-            print(f"base.tensor_dict[key] ({key}) is {base.tensor_dict[key]}, using it to create tensor")
+        if key in tensor_dict:
+            print(f"*****INFO*****: key {key} in tensor_dict")
+            print(f"tensor_dict[key] ({key}) is {tensor_dict[key]}, using it to create tensor")
             print(f"fixed param is {torch.tensor(l, device=device, dtype=dtype, requires_grad=requires_grad)}")
             
-            if base.tensor_dict[key] is None:
-                print(f"base.tensor_dict[key] is None, using fixed param")
+            if tensor_dict[key] is None:
+                print(f"tensor_dict[key] is None, using fixed param")
             # verify length
-            elif len(l) != len(base.tensor_dict[key]):
+            elif len(l) != len(tensor_dict[key]):
                 raise ValueError(
-                    f"Length of the tensor in tensor_dict ({len(base.tensor_dict[key])}) "
+                    f"Length of the tensor in tensor_dict ({len(tensor_dict[key])}) "
                     f"and the length of the list ({len(l)}) do not match."
                 )
             else:
                 # move the tensor to the device
-                return base.tensor_dict[key].to(device)
+                return tensor_dict[key].to(device)
         
         else:
-            # print(f"key {key} not in base.tensor_dict")
+            # print(f"key {key} not in tensor_dict")
             pass
         
     else:
-        print("base.tensor_dict is None")
+        print("tensor_dict is None")
 
 
     return torch.tensor(

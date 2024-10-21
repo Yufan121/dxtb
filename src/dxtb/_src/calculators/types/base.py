@@ -305,6 +305,9 @@ class CalculatorCache(TensorLike):
         for key in self.__slots__:
             if key != "_cache_keys":
                 setattr(self, key, None)
+                
+        # Yufan modification
+        reset_tensor_dict()
 
         self._cache_keys = {
             prop: None for prop in self.__slots__ if prop != "_cache_keys"
@@ -901,3 +904,10 @@ class BaseCalculator(GetPropertiesMixin, TensorLike):
         self.override_device(device)
 
         return self
+
+
+### Yufan modification
+
+def reset_tensor_dict():
+    global tensor_dict
+    tensor_dict = None
