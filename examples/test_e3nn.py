@@ -23,20 +23,22 @@ class InvariantPolynomial(torch.nn.Module):
         super().__init__()
         self.num_z = num_z
 
+        # spherical harmonics
         self.irreps_sh = o3.Irreps.spherical_harmonics(lmax)
 
-        # to multiply the edge type one-hot with the spherical harmonics to get the edge attributes
+        # to MULTIPLY the edge type one-hot with the spherical harmonics to get the edge attributes
         self.mul = TensorProduct(
-            [(num_z**2, "0e")],
-            self.irreps_sh,
-            [(num_z**2, ir) for _, ir in self.irreps_sh],
-            [(0, l, l, "uvu", False) for l in range(lmax + 1)],
+            [(num_z**2, "0e")],  # edge type one-hot
+            self.irreps_sh, 
+            [(num_z**2, ir) for _, ir in self.irreps_sh], # edge attributes
+            [(0, l, l, "uvu", False) for l in range(lmax + 1)], # uvu means the output is symmetric under the exchange of the two inputs
         )
         irreps_attr = self.mul.irreps_out
 
-        irreps_mid = o3.Irreps("64x0e + 24x1e + 24x1o + 16x2e + 16x2o")
+        irreps_mid = o3.Irreps("64x0e + 24x1e + 24x1o + 16x2e + 16x2o") # these mean the output of the model
         irreps_out = o3.Irreps(irreps_out)
 
+        # tp means tensor product
         self.tp1 = FullyConnectedTensorProduct(
             irreps_in1=self.irreps_sh,
             irreps_in2=irreps_attr,

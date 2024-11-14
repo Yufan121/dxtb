@@ -11,42 +11,33 @@ from torch_scatter import scatter
 from e3nn import o3
 from e3nn.o3 import FullyConnectedTensorProduct, TensorProduct
 
-# Define the MLP
-class MLP(nn.Module):
-    def __init__(self, input_dim, output_dim):
-        super(MLP, self).__init__()
-        self.fc1 = nn.Linear(input_dim, 64)
-        self.fc2 = nn.Linear(64, 64)
-        self.fc3 = nn.Linear(64, output_dim)
-        self.initialize_parameters()
-
-    def forward(self, x):
-        x = torch.relu(self.fc1(x))
-        x = torch.relu(self.fc2(x))
-        x = self.fc3(x)
-        return x
-
-    def initialize_parameters(self):
-        for layer in [self.fc1, self.fc2, self.fc3]:
-            nn.init.constant_(layer.weight, 0)
-            nn.init.constant_(layer.bias, 0)
-
 
 
 if __name__ == "__main__":
     # test the function of InvariantPolynomial
-    num_z = 3
-    lmax = 2
-    irreps_out = "64x0e + 24x1e + 24x1o + 16x2e + 16x2o" # these mean the output of the model
-    model = InvariantPolynomial(irreps_out, num_z, lmax)
-    print(model)
     
-    # test input 
-    data = Data( 
-        pos=torch.tensor([[0.0, 0.0, 0.0], [0.0, 0.0, 1.5], [0.0, 0.0, 2.5], [0.0, 0.0, 3.5]]),
-        z=torch.tensor([3, 1, 4, 1]),
-        batch=torch.tensor([0, 0, 0, 1]),
+    
+    torch.set_default_dtype(torch.float64)
+
+    pos = torch.tensor(
+        [
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.5],
+        ]
     )
+
+    # atom type
+    z = torch.tensor([0, 1, 2, 2])
+
+    dataset = [Data(pos=pos @ R.T, z=z) for R in o3.rand_matrix(10)] # 10 random rotations
+    data = next(iter(DataLoader(dataset, batch_size=len(dataset))))
+
+    model = InvariantPolynomial("0e+0o", num_z=3, lmax=3)
+
+    print(f'type of model: {type(model)}, model: {model}')
+    
     print(data)
 
     # test the forward function
