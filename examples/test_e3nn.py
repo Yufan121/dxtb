@@ -56,7 +56,7 @@ class InvariantPolynomial(torch.nn.Module):
         num_z = self.num_z  # number of atom types
 
         # graph
-        edge_src, edge_dst = radius_graph(data.pos, 10.0, data.batch)
+        edge_src, edge_dst = radius_graph(data.pos, 10.0, data.batch) # cutoff here
 
         # spherical harmonics
         edge_vec = data.pos[edge_src] - data.pos[edge_dst]
@@ -85,6 +85,61 @@ class InvariantPolynomial(torch.nn.Module):
 
 
 
+def compute_local_environment(pos, z, radius=1.5):
+    """
+    Compute the local environment for each atom, which includes the relative positions
+    of its neighboring atoms within a given radius and the types of neighboring atoms.
+
+    Parameters:
+    pos (torch.Tensor): Tensor of shape (N, 3) or (F, N, 3) containing the positions of N atoms
+                        or F frames of N atoms.
+    z (torch.Tensor): Tensor of shape (N,) or (F, N) containing the types of N atoms or F frames of N atoms.
+    radius (float): The radius within which to consider neighboring atoms.
+
+    Returns:
+    tuple: Two tensors, one for the relative positions and one for the neighbor types.
+           If input is (N, 3), returns tensors of shape (1, N, N-1, 3) and (1, N, N-1, 1).
+           If input is (F, N, 3), returns tensors of shape (F, N, N-1, 3) and (F, N, N-1, 1).
+    """
+    if pos.dim() == 2:
+        pos = pos.unsqueeze(0)  # Add a frame dimension if not present
+        z = z.unsqueeze(0)  # Add a frame dimension if not present
+
+    all_relative_pos = []
+    all_neighbor_types = []
+
+    for frame_pos, frame_z in zip(pos, z):
+        # Create a Data object
+        data = Data(pos=frame_pos, z=frame_z)
+
+        # Compute the radius graph
+        edge_index = radius_graph(data.pos, r=radius)
+
+        # Initialize lists to store relative positions and neighbor types
+        relative_pos = torch.zeros((frame_pos.size(0), frame_pos.size(0) - 1, 3))
+        neighbor_types = torch.zeros((frame_pos.size(0), frame_pos.size(0) - 1, 1))
+
+        # Iterate over the edges to compute relative positions and neighbor types
+        for src, dst in edge_index.t().tolist():
+            relative_pos[src, dst % (frame_pos.size(0) - 1)] = data.pos[dst] - data.pos[src]
+            neighbor_types[src, dst % (frame_pos.size(0) - 1)] = data.z[dst]
+
+        all_relative_pos.append(relative_pos)
+        all_neighbor_types.append(neighbor_types)
+
+    # Stack the lists to create tensors of shape (F, N, N-1, 3) and (F, N, N-1, 1)
+    all_relative_pos = torch.stack(all_relative_pos)
+    all_neighbor_types = torch.stack(all_neighbor_types)
+    # convert all_neighbor_types to int
+    all_neighbor_types = all_neighbor_types.to(torch.int64)
+
+    if pos.size(0) == 1:
+        return all_relative_pos[0], all_neighbor_types[0]  # Return single tensors if there was only one frame
+    return all_relative_pos, all_neighbor_types
+
+
+
+
 if __name__ == "__main__":
     
     torch.set_default_dtype(torch.float64)
@@ -103,6 +158,8 @@ if __name__ == "__main__":
 
     dataset = [Data(pos=pos @ R.T, z=z) for R in o3.rand_matrix(10)]
     data = next(iter(DataLoader(dataset, batch_size=len(dataset))))
+
+    print(f'dataset: {dataset}')
 
     f = InvariantPolynomial("0e+0o", num_z=3, lmax=3)
 

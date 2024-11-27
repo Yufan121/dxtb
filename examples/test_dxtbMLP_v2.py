@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import dxtb
-from test_e3nn import InvariantPolynomial
+from test_e3nn import InvariantPolynomial, compute_local_environment
 
 # for e3nn
 from torch_cluster import radius_graph
@@ -11,126 +11,113 @@ from torch_scatter import scatter
 from e3nn import o3
 from e3nn.o3 import FullyConnectedTensorProduct, TensorProduct
 
-
-
 if __name__ == "__main__":
-    # test the function of InvariantPolynomial
     
-    
+    # Define the model
+    model = InvariantPolynomial("0e+0o", num_z=3, lmax=3)
+
+    # Ensure all model parameters are of type torch.float64
+    model = model.double()
+
+    # Define a simple loss function and optimizer
+    criterion = nn.MSELoss()
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+    # Generate toy data
     torch.set_default_dtype(torch.float64)
 
-    pos = torch.tensor(
-        [
+    # Example usage
+    pos1 = torch.tensor(
+        [[
             [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
             [0.0, 0.0, 1.5],
-        ]
+        ],
+        [
+            [0.0, 0.0, 0.0],
+            [1.5, 0.0, 0.0],
+            [0.0, 1.5, 0.0],
+            [0.0, 0.0, 2.0],
+        ]]
     )
 
-    # atom type
-    z = torch.tensor([0, 1, 2, 2])
+    z = torch.tensor([[0, 1, 2, 2], [0, 1, 2, 1]])
+    relative_pos, neighbor_type = compute_local_environment(pos1, z=z, radius=1000) # into shape (F, N, N-1, 3) and (F, N, N-1, 1)
+    print(f'relative_pos.shape: {relative_pos.shape}, neighbor_type.shape: {neighbor_type.shape}')
 
-    dataset = [Data(pos=pos @ R.T, z=z) for R in o3.rand_matrix(10)] # 10 random rotations
-    data = next(iter(DataLoader(dataset, batch_size=len(dataset))))
+    # Reshape relative_pos and neighbor_type for training (dim 2)
+    # make shape (F, N, N-1, 3) -> (F*N, N-1, 3), (F, N, N-1, 1) -> (F*N, N-1)
+    relative_pos = relative_pos.view(-1, relative_pos.size(2), relative_pos.size(3))
+    neighbor_type = neighbor_type.view(-1, neighbor_type.size(2))
 
-    model = InvariantPolynomial("0e+0o", num_z=3, lmax=3)
+    # Generate random targets for each training example
+    targets = torch.randn(relative_pos.size(0), 2)
 
-    print(f'type of model: {type(model)}, model: {model}')
-    
-    print(data)
+    # Reduce the first dim, make list
+    dataset = [Data(pos=pos, z=z) for pos, z in zip(relative_pos, neighbor_type)]
+    print(f'dataset: {dataset}')
 
-    # test the forward function
-    output = model(data)
-    print(output)
-    
-    
-    
-    
-    
-# if __name__ == "__main__":
-    
-#     # define config
-#     dd = {"dtype": torch.double, "device": torch.device("cpu")}
-#     numbers = torch.tensor([3, 1, 4], device=dd["device"]) # atom numbers
-#     positions = torch.tensor([[0.0, 0.0, 0.0], [0.0, 0.0, 1.5], [0.0, 0.0, 2.5]],
-#                             **dd)
+    # Create a dataset and a data loader
+    data_loader = DataLoader(dataset, batch_size=len(dataset), shuffle=False)
 
+    # Define the optimizer
+    optimizer = optim.Adam(model.parameters(), lr=0.1)
 
-#     # Initialize the MLP
-#     input_dim = 3  # Number of input features
-#     output_dim = 4*3  # Number of output features # show be able to predict for each atom
-#     mlp = MLP(input_dim, output_dim).to(dd["device"])
+    # Target energy
+    target_energy = torch.tensor(-1.0, dtype=torch.double)
 
-#     # Define the optimizer
-#     optimizer = optim.Adam(mlp.parameters(), lr=0.1)
+    # Training loop
+    num_epochs = 100
+    loss_list = []
+    for epoch in range(num_epochs):
+        for i, data in enumerate(data_loader):
+            optimizer.zero_grad()
+            output = model(data)
 
-#     # target_energy
-#     target_energy = torch.tensor(-1.0, **dd)
+            # Use the corresponding targets
+            target = targets[i * data_loader.batch_size:(i + 1) * data_loader.batch_size]
+            loss = criterion(output, target)
+            loss.backward()
+            optimizer.step()
 
-#     # Training loop
-#     num_epochs = 100
-#     loss_list = []
-#     for epoch in range(num_epochs):
-#         # Forward pass: predict parameters
-#         # use atom numbers to predict the parameters
-#         input_features = numbers.float()
-#         predicted_params = mlp(input_features)
+            # Compute the energy
+            pos = data.pos.clone().requires_grad_(True)
+            calc = dxtb.calculators.GFN1Calculator(data.z, tensor_dict=output, dtype=torch.double)
+            energy = calc.get_energy(pos)
 
-#         # Update tensor_dict with predicted parameters
-#         tensor_dict = {}
-#         natom = 3
+            if energy is None:
+                print("Energy is None")
+                exit(1)
 
-#         zeff = predicted_params[0*natom:1*natom].cpu().detach().numpy()
-#         arep = predicted_params[1*natom:2*natom].cpu().detach().numpy()
-#         en = predicted_params[2*natom:3*natom].cpu().detach().numpy()
-#         gam = predicted_params[3*natom:4*natom].cpu().detach().numpy()
-        
-#         tensor_dict["zeff"] = torch.tensor(zeff, requires_grad=True, **dd)
-#         tensor_dict["arep"] = torch.tensor(arep, requires_grad=True, **dd)
-#         tensor_dict["en"] = torch.tensor(en, requires_grad=True, **dd)
-#         tensor_dict["gam"] = torch.tensor(gam, requires_grad=True, **dd)
-        
-#         print(f"predicted_params: {tensor_dict}")
+            # Compute the loss (mean squared error)
+            loss_xtb = torch.mean((energy - target_energy) ** 2)
 
-#         # Compute the energy
-#         pos = positions.clone().requires_grad_(True)
-#         calc = dxtb.calculators.GFN1Calculator(numbers, tensor_dict=tensor_dict, **dd)
-#         energy = calc.get_energy(pos)
-        
-#         if energy is None:
-#             print("Energy is None")
-#             exit(1)
+            # Compute the middle gradient
+            g_zeff = torch.autograd.grad(loss_xtb, output, retain_graph=True)[0]
 
-#         # Compute the loss (mean squared error)
-#         loss_xtb = torch.mean((energy - target_energy) ** 2)  # Replace target_energy with your target value
+            # Stack the gradients
+            middle_gradient = torch.stack([g_zeff])
 
-#         # Compute the middle gradient
-#         g_zeff = torch.autograd.grad(loss_xtb, tensor_dict["zeff"], retain_graph=True)[0]
-#         g_arep = torch.autograd.grad(loss_xtb, tensor_dict["arep"], retain_graph=True)[0]
-#         g_en = torch.autograd.grad(loss_xtb, tensor_dict["en"], retain_graph=True)[0]
-#         g_gam = torch.autograd.grad(loss_xtb, tensor_dict["gam"], retain_graph=True)[0]
+            # Backward pass and optimization
+            optimizer.zero_grad()
+            output.backward(middle_gradient.view(-1))
+            optimizer.step()
 
-#         # Stack the gradients
-#         middle_gradient = torch.stack([g_zeff, g_arep, g_en, g_gam])
+            calc.reset()
 
-#         # Backward pass and optimization
-#         optimizer.zero_grad()
-#         predicted_params.backward(middle_gradient.view(-1))
-#         optimizer.step()
+            # Print the loss
+            if (epoch + 1) % 1 == 0:
+                print(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {loss_xtb.item()}")
 
-#         calc.reset()
+            loss_list.append((loss_xtb.item(), middle_gradient.tolist()))
 
-#         # Print the loss
-#         if (epoch + 1) % 1 == 0:
-#             print(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {loss_xtb.item()}")
-            
-#         loss_list.append((loss_xtb.item(), middle_gradient.tolist()))
+    print("Training complete!")
 
-#     # After training, you can use the trained MLP to predict parameters for new inputs
+    # Save the model
+    torch.save(model.state_dict(), 'toy_test.model.pth')
 
-
-#     # save the loss to a file
-#     with open("loss.txt", "w") as f:
-#         for loss in loss_list:
-#             f.write(f"{loss}\n")
+    # Save the loss to a file
+    with open("loss.txt", "w") as f:
+        for loss in loss_list:
+            f.write(f"{loss}\n")
