@@ -150,6 +150,47 @@ def get_elem_param(
         for val in vals:
             l.append(val)
 
+    import dxtb._src.calculators.types as types
+
+    try:
+        tensor_dict = types.base.tensor_dict
+        # Access the global tensor_dict
+        if tensor_dict is not None:
+            # print function caller
+            import inspect
+            print(inspect.stack()[1].function)
+
+            # get the tensor from the tensor_dict
+            if key in tensor_dict:
+                print(f"*****INFO*****: key {key} in tensor_dict")
+                print(f"tensor_dict[key] ({key}) is {tensor_dict[key]}, using it to create tensor")
+                print(f"fixed param is {torch.tensor(l, device=device, dtype=dtype, requires_grad=requires_grad)}")
+
+                if tensor_dict[key] is None:
+                    print(f"tensor_dict[key] is None, using fixed param")
+                # verify length
+                elif len(l) != len(tensor_dict[key]):
+                    raise ValueError(
+                        f"Length of the tensor in tensor_dict ({len(tensor_dict[key])}) "
+                        f"and the length of the list ({len(l)}) do not match."
+                    )
+                else:
+                    # move the tensor to the device
+                    return tensor_dict[key].to(device)
+
+            else:
+                # print(f"key {key} not in tensor_dict")
+                pass
+
+        else:
+            # print("tensor_dict is None")
+            pass
+
+    except Exception as e:
+        # print(f"An error occurred: {e}")
+        # Handle the error or skip the block
+        pass
+
     return torch.tensor(
         l,
         device=device,

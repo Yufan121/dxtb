@@ -307,6 +307,9 @@ class CalculatorCache(TensorLike):
             if key != "_cache_keys":
                 setattr(self, key, None)
 
+        # Yufan modification
+        reset_tensor_dict()
+
         self._cache_keys = {
             prop: None for prop in self.__slots__ if prop != "_cache_keys"
         }
@@ -461,7 +464,8 @@ class BaseCalculator(GetPropertiesMixin, TensorLike):
         cache: CalculatorCache | None = None,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
-        **kwargs: Any,
+        tensor_dict: dict[str, Any] | None = None , # Yufan modification
+        **kwargs: Any, # this line means that the function can take any number of keyword arguments
     ) -> None:
         """
         Instantiate the Calculator object with the following parameters:
@@ -552,6 +556,21 @@ class BaseCalculator(GetPropertiesMixin, TensorLike):
         self.ihelp = IndexHelper.from_numbers(
             numbers, par, self.opts.batch_mode
         )
+        
+        
+        
+        ##### import tensor_dict as global variables, Yufan modification
+        if tensor_dict is not None:
+            globals()['tensor_dict'] = tensor_dict
+            # for key, value in tensor_dict.items(): # make global variables
+            #     # globals()[key] = value
+            #     global key
+            #     key = value
+            #     print(f"Global variable {key} is created.")
+        else:
+            print("**** Using inner fixed param, not using machine-learning enabled param ****")
+            pass
+
 
         ################
         # INTERACTIONS #
@@ -956,3 +975,12 @@ class BaseCalculator(GetPropertiesMixin, TensorLike):
     def __repr__(self) -> str:  # pragma: no cover
         """Return a representation of the instance."""
         return str(self)
+
+
+
+
+
+### Yufan modification
+def reset_tensor_dict():
+    global tensor_dict
+    tensor_dict = None
