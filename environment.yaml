@@ -34,3 +34,4 @@ dependencies:
   - tad-dftd4
   - pip:
       - tad-libcint
+      - pyyaml
