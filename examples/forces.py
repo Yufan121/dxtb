@@ -63,3 +63,9 @@ dxtb.timer.print()
 
 equal = torch.allclose(forces1, forces2, atol=1e-6, rtol=1e-6)
 print("\n\nForces are equal:", equal)
+
+
+######################################################################
+# calculate hessian 
+# hessian = torch.autograd.functional.hessian(calc.energy, pos, create_graph=True)    
+# print(hessian)

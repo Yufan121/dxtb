@@ -731,7 +731,7 @@ class IndexHelper(TensorLike):
             extra=extra,
         )
 
-    def spread_uspecies_to_atom(
+    def spread_uspecies_to_atom(    # work on atom-resolved tensor with atom-wise corrections
         self, x: Tensor, dim: int | tuple[int, int] = -1, extra: bool = False
     ) -> Tensor:
         """

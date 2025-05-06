@@ -398,7 +398,9 @@ def new_es3(
                 f"({unique.device}) do not match."
             )
 
-    hubbard_derivs = par.get_elem_param(unique, "gam3")
+    hubbard_derivs = par.get_elem_param(unique, "gam3") # only unique elements are considered
+    
+    print(f"hubbard_derivs: {hubbard_derivs}")
 
     shell_scale = (
         None
