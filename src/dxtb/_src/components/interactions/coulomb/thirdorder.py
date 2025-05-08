@@ -165,22 +165,28 @@ class ES3(Interaction):
     :default: ``None``
     """
 
-    __slots__ = ["hubbard_derivs", "shell_scale"]
+    __slots__ = ["hubbard_derivs", "shell_scale"]   # slots means that the variables are stored in the class as a fixed size array
 
     def __init__(
         self,
         hubbard_derivs: Tensor,
         shell_scale: Tensor | None = None,
+        # Yufan added
+        hubbard_derivs_peratom: Tensor | None = None,
+        shell_scale_peratom: Tensor | None = None,
+        # Yufan added end
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
     ) -> None:
         super().__init__(device, dtype)
         self.hubbard_derivs = hubbard_derivs
         self.shell_scale = shell_scale
+        self.hubbard_derivs_peratom = hubbard_derivs_peratom
+        self.shell_scale_peratom = shell_scale_peratom
 
     # pylint: disable=unused-argument
     @override
-    def get_cache(
+    def get_cache( 
         self,
         *,
         numbers: Tensor | None = None,
@@ -229,14 +235,24 @@ class ES3(Interaction):
         # if the cache is built, store the cachevar for validation
         self._cachevars = cachvars
 
+
         if self.shell_scale is None:
             hd = ihelp.spread_uspecies_to_atom(self.hubbard_derivs)
         else:
-            scale = ihelp.spread_ushell_to_shell(
+            scale = ihelp.spread_ushell_to_shell(           # spread the element-wise shell scale to the shell scale
                 self.shell_scale[ihelp.unique_angular]
             )
+            
+            # traditional way
             hd = ihelp.spread_uspecies_to_shell(self.hubbard_derivs) * scale
-
+            
+            # # ** Yufan added **
+            # # new way
+            # hd_peratom = self.hubbard_derivs_peratom
+            # # scale_peratom = self.shell_scale_peratom # no peratom scaling for now
+            # hd = (ihelp.spread_uspecies_to_shell(self.hubbard_derivs) + hd_peratom) * (scale)
+            # # ** Yufan added end **
+            
         self.cache = ES3Cache(
             hd, shell_resolved=(self.shell_scale is not None), **self.dd
         )
@@ -399,10 +415,11 @@ def new_es3(
             )
 
     hubbard_derivs = par.get_elem_param(unique, "gam3") # only unique elements are considered
+    hubbard_derivs_peratom = None# par.get_peratom_param(unique, "gam3")
     
     print(f"hubbard_derivs: {hubbard_derivs}")
 
-    shell_scale = (
+    shell_scale = (     # if shell is false, shell_scale is None
         None
         if par.is_false("thirdorder", "shell")
         else torch.cat(
@@ -414,5 +431,22 @@ def new_es3(
             dim=0,
         )
     )
-
-    return ES3(hubbard_derivs, shell_scale=shell_scale, **dd)
+    
+    # Yufan added
+    # no peratom scaling for now
+    # shell_scale_peratom = (
+    #     None
+    #     if par.is_false("thirdorder", "shell")
+    #     else torch.cat(
+    #         [torch.atleast_1d(par.get("thirdorder.shell.s")),
+    #          torch.atleast_1d(par.get("thirdorder.shell.p")),
+    #          torch.atleast_1d(par.get("thirdorder.shell.d"))],
+    #         dim=0,
+    #     )
+    # )
+    # Yufan added end
+    return ES3(hubbard_derivs, shell_scale=shell_scale, 
+               # Yufan added
+               hubbard_derivs_peratom=hubbard_derivs_peratom, shell_scale_peratom=None,
+               # Yufan added end
+               **dd)

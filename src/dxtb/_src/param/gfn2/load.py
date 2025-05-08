@@ -46,7 +46,7 @@ from dxtb._src.loader.lazy import LazyLoaderParam as Lazy
 
 from ..base import Param
 
-__all__ = ["GFN2_XTB"]
+__all__ = ["GFN2_XTB"]  # this means that the GFN2_XTB is the only public member of this module
 
 
 GFN2_XTB: Param = Lazy(Path(__file__).parent / "gfn2-xtb.toml")  # type: ignore

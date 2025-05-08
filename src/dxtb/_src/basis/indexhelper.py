@@ -891,7 +891,7 @@ class IndexHelper(TensorLike):
             extra=extra,
         )
 
-    def spread_ushell_to_orbital_cart(
+    def spread_ushell_to_orbital_cart(  
         self, x: Tensor, dim: int | tuple[int, int] = -1, extra: bool = False
     ) -> Tensor:
         """

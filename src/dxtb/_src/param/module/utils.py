@@ -33,7 +33,7 @@ from tad_mctc.data import pse
 from torch import nn
 
 from dxtb._src.constants.defaults import DEFAULT_BASIS_INT
-from dxtb._src.typing import DD, Any, Tensor
+from dxtb._src.typing import DD, Any, Tensor, PathLike
 from dxtb._src.utils import is_int_list
 
 from .types import NonNumericValue, ParameterModule
