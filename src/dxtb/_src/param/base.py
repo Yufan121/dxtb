@@ -50,7 +50,7 @@ from .repulsion import Repulsion
 from .solvation import Solvation
 from .thirdorder import ThirdOrder
 
-__all__ = ["Param"]
+__all__ = ["Param"] # this means that the Param class is the only public member of this module, import * from this module will only import Param
 
 
 class Param(BaseModel):

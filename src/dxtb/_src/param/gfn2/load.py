@@ -50,3 +50,4 @@ __all__ = ["GFN2_XTB"]  # this means that the GFN2_XTB is the only public member
 
 
 GFN2_XTB: Param = Lazy(Path(__file__).parent / "gfn2-xtb.toml")  # type: ignore
+
