@@ -527,7 +527,7 @@ class BaseCalculator(GetPropertiesMixin, TensorLike):
 
         # Internally, we will always use the differentiable parameter model.
         if not isinstance(par, ParamModule):
-            par = ParamModule(par, **self.dd)
+            par = ParamModule(par, **self.dd) 
 
         # If method not explicitly set in options, we try to get it from the
         # parametrization.

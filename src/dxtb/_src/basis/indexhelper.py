@@ -759,7 +759,9 @@ class IndexHelper(TensorLike):
         self, x: Tensor, dim: int | tuple[int, int] = -1, extra: bool = False
     ) -> Tensor:
         """
-        Spread unique species tensor to shell-resolved tensor.
+        Spread unique species tensor to shell-resolved tensor.  
+        
+        Yufan: Just scale each shell by a fixed factor.
 
         Parameters
         ----------

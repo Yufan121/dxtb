@@ -49,9 +49,138 @@ class ParamModule(nn.Module, ParamElementsPairsMixin):
     as parameters. Nonnumeric values are wrapped in :class:`NonNumericValue`.
     """
 
+    # ############################################################
+    # ### Yufan: Per atom parameters ### 
+    # ############################################################
+    # ### Charges
+    # """Klopman-Ohno electrostatics."""
+    # gexp = None
+    # """Exponent of Coulomb kernel. """
+    # average = None
+    # """Averaging function for Hubbard parameter."""
+
+    # ### Dispersion D4
+    # s6 = None
+    # """Scaling factor for multipolar (dipole-dipole contribution) terms"""
+    # s8 = None
+    # """Scaling factor for multipolar (dipole-quadrupole contribution) terms"""
+    # a1 = None
+    # """Becke-Johnson damping parameter."""
+    # a2 = None
+    # """Becke-Johnson damping parameter."""
+    # s9 = None
+    # """Scaling factor for the many-body dispersion term (ATM/RPA-like)."""
+    # s10 = None
+    # """Scaling factor for quadrupole-quadrupole term."""
+    # alp = None
+    # """Exponent of zero damping function in the ATM term."""
+
+    # ### Element
+    # levels: List[float]
+    # """Atomic level energies for each shell"""
+    # slater: List[float]
+    # """Slater exponents of the STO-NG functions for each shell"""
+
+    # ngauss: List[int]
+    # """
+    # Number of primitive Gaussian functions used in the STO-NG expansion for
+    # each shell.
+    # """
+
+    # ############################################################################
+
+    # refocc: List[float]
+    # """Reference occupation for each shell"""
+
+    # shpoly: List[float]
+    # """Polynomial enhancement for Hamiltonian elements"""
+
+    # kcn: List[float]
+    # """CN dependent shift of the self energy for each shell"""
+
+    # ############################################################################
+
+    # gam: float
+    # """Chemical hardness / Hubbard parameter."""
+
+    # lgam: List[float]
+    # """Relative chemical hardness for each shell."""
+
+    # gam3: float = 0.0
+    # """Atomic Hubbard derivative."""
+
+    # ############################################################################
+
+    # zeff: float
+    # """Effective nuclear charge used in repulsion."""
+
+    # arep: float
+    # """Repulsion exponent."""
+
+    # ############################################################################
+
+    # xbond: float = 0.0
+    # """Halogen bonding strength."""
+
+    # en: float
+    # """Electronegativity."""
+
+    # ############################################################################
+
+    # dkernel: float = 0.0
+    # """Dipolar exchange-correlation kernel."""
+
+    # qkernel: float = 0.0
+    # """Quadrupolar exchange-correlation kernel."""
+
+    # mprad: float = 0.0
+    # """Offset radius for the damping in the AES energy."""
+
+    # mpvcn: float = 0.0
+    # """Shift value in the damping in the AES energy. Only used if mprad != 0."""
+
+    # ### Hamiltonian
+    # ss: float
+    # """Scaling factor for two s-shells."""
+
+    # pp: float
+    # """Scaling factor for two p-shells."""
+
+    # dd: float
+    # """Scaling factor for two d-shells."""
+
+    # sd: float
+    # """Scaling factor for an s- and a d-shell."""
+
+    # pd: float
+    # """Scaling factor for a p- and a d-shell."""
+    
+    # wexp: float
+    # """Exponent of the orbital exponent dependent off-site scaling factor"""
+
+    # kpol: float = 2.0
+    # """Scaling factor for polarization functions"""
+
+    # enscale: float
+    # """Electronegativity scaling factor for off-site valence blocks"""
+
+    # cn: Optional[str] = None
+    # """Local environment descriptor for shifting the atomic self-energies"""
+
+    # shell: Dict[str, float]
+    # """Shell-pair dependent scaling factor for off-site blocks"""
+
+    # kpair: Dict[str, float] = {}
+    # """Atom-pair dependent scaling factor for off-site valence blocks"""
+
+
+
+
+
     def __init__(
         self,
         par: Param,
+        atom_param_dict: dict[str, Any] | None = None,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
     ) -> None:
@@ -66,10 +195,15 @@ class ParamModule(nn.Module, ParamElementsPairsMixin):
             Data type of the tensors. If ``None``, the default data type from
             ``get_default_dtype`` is used. Defaults to ``None``.
         """
-        super().__init__()
+        super().__init__()  # without this, the module is not registered
 
         # Recursively convert the dictionary into a parameter tree.
         self.parameter_tree = _convert(par.clean_model_dump(), device, dtype)
+        
+        
+        # Yufan: add delta to the parameter tree
+        self.atom_param = par._per_atom_params_dict
+
 
         # Dummy tensor to get the device and dtype.
         self.register_buffer(
@@ -123,6 +257,7 @@ class ParamModule(nn.Module, ParamElementsPairsMixin):
     def to_pydantic(self) -> Param:
         """
         Converts the parameter tree back to a Pydantic model.
+        ## pydantic is used for validation and serialization
 
         Returns
         -------
@@ -197,7 +332,7 @@ class ParamModule(nn.Module, ParamElementsPairsMixin):
     def __str__(self) -> str:  # pragma: no cover
         return f"{self.__class__.__name__}({self.parameter_tree})"
 
-    def __repr__(self) -> str:  # pragma: no cover
+    def __repr__(self) -> str:  # pragma: no cover, __repr__ is used for debugging
         return str(self)
 
 

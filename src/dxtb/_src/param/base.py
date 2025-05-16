@@ -33,7 +33,7 @@ quantities must be carried out separately.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 from pydantic import BaseModel
 
@@ -50,7 +50,7 @@ from .repulsion import Repulsion
 from .solvation import Solvation
 from .thirdorder import ThirdOrder
 
-__all__ = ["Param"] # this means that the Param class is the only public member of this module, import * from this module will only import Param
+__all__ = ["Param", "ParamPerAtom"] # this means that the Param class is the only public member of this module, import * from this module will only import Param
 
 
 class Param(BaseModel):
@@ -96,6 +96,26 @@ class Param(BaseModel):
     solvation: Optional[Solvation] = None
     """Definition of the solvation model."""
 
+    # 新增：每原子参数列表（不作为Pydantic字段）
+    # _per_atom_params_list: List['ParamPerAtom'] = [] # 
+    # Use a list of Tensor dictionaries instead of a list of ParamPerAtom instances
+    _per_atom_params_dict: List[Dict[str, Any]] = None
+
+    # def model_post_init(self, __context: Optional[Dict[str, Any]]) -> None:
+    #     """
+    #     Pydantic初始化后钩子。用于初始化_per_atom_params_list。
+    #     """
+    #     self._per_atom_params_list = []
+    #     if __context and 'per_atom_data_list' in __context:
+    #         raw_list = __context['per_atom_data_list']
+    #         if isinstance(raw_list, list):
+    #             for item in raw_list:
+    #                 if isinstance(item, dict):
+    #                     try:
+    #                         self._per_atom_params_list.append(ParamPerAtom.model_validate(item))
+    #                     except Exception as e:
+    #                         print(f"警告: 跳过无效的每原子参数: {item}, 错误: {e}")
+
     def clean_model_dump(self) -> dict[str, Any]:
         """
         Clean the model from any ``None`` values.
@@ -113,6 +133,325 @@ class Param(BaseModel):
             raise ValueError("Version information is not available.")
 
         return self.meta.name
+
+    # @classmethod
+    # def from_dict(cls: Type[Self], data_dict: Dict[str, Any]) -> Self:
+    #     """
+    #     从字典初始化Param对象，并支持per_atom_data_list。
+    #     """
+    #     data = data_dict.copy()
+    #     per_atom_data = data.pop('per_atom_data_list', None)
+    #     context = {'per_atom_data_list': per_atom_data} if per_atom_data is not None else None
+    #     try:
+    #         return cls.model_validate(data, context=context)
+    #     except pydantic_core.ValidationError as e:
+    #         raise e
+
+    # def to_dict(self, include_per_atom: bool = True) -> Dict[str, Any]:
+    #     """
+    #     转为字典，可选包含每原子参数。
+    #     """
+    #     d = self.model_dump()
+    #     if include_per_atom:
+    #         d['per_atom_data_list'] = [p.model_dump() for p in getattr(self, '_per_atom_params_list', [])]
+    #     return d
+    
+    
+
+    @classmethod
+    def from_file(cls: Type[Self], filepath: PathLike) -> Self:
+        """
+        Load a parametrization from a file. The file format is determined by the
+        file extension. Supported formats are JSON, TOML, and YAML.
+
+        Parameters
+        ----------
+        filepath : PathLike
+            The file path to the parametrization file.
+
+        Returns
+        -------
+        Param
+            The loaded parametrization data.
+
+        Raises
+        ------
+        ValueError
+            If the file format is not supported.
+        """
+        filepath = Path(filepath)
+        if filepath.suffix == ".json":
+            return cls.from_json_file(filepath)
+        if filepath.suffix == ".toml":
+            return cls.from_toml_file(filepath)
+        if filepath.suffix in (".yaml", ".yml"):
+            return cls.from_yaml_file(filepath)
+
+        raise ValueError(f"Unsupported file format: {filepath.suffix}")
+
+    def to_file(self, filepath: PathLike, **kwargs) -> None:
+        """
+        Save the parametrization to a file. The file format is determined by the
+        file extension. Supported formats are JSON, TOML, and YAML.
+
+        Parameters
+        ----------
+        filepath : PathLike
+            The file path to save the parametrization data.
+
+        Raises
+        ------
+        ValueError
+            If the file format is not supported.
+        """
+        filepath = Path(filepath)
+        if filepath.suffix == ".json":
+            self.to_json_file(filepath, **kwargs)
+        elif filepath.suffix == ".toml":
+            self.to_toml_file(filepath, **kwargs)
+        elif filepath.suffix in (".yaml", ".yml"):
+            self.to_yaml_file(filepath, **kwargs)
+        else:
+            raise ValueError(f"Unsupported file format: {filepath.suffix}")
+
+    @classmethod
+    def from_json_file(cls: Type[Self], filepath: PathLike) -> Self:
+        """
+        Load a parametrization from a JSON file.
+
+        Parameters
+        ----------
+        filepath : PathLike
+            The file path to the parametrization file.
+
+        Returns
+        -------
+        Param
+            The loaded parametrization data.
+        """
+        import json
+
+        with open(filepath, encoding="utf-8") as fd:
+            return cls(**json.load(fd))
+
+    def to_json_file(self, filepath: PathLike, **kwargs) -> None:
+        """
+        Save the parametrization to a JSON file.
+
+        Parameters
+        ----------
+        filepath : PathLike
+            The file path to save the parametrization data.
+        kwargs : dict
+            Additional keyword arguments for the dump function of the
+            JSON writer.
+        """
+        import json
+
+        with open(filepath, "w", encoding="utf-8") as fd:
+            json.dump(self.clean_model_dump(), fd, **kwargs)
+
+    @classmethod
+    def from_toml_file(cls: Type[Self], filepath: PathLike) -> Self:
+        """
+        Load a parametrization from a TOML file.
+
+        Parameters
+        ----------
+        filepath : PathLike
+            The file path to the parametrization file.
+
+        Returns
+        -------
+        Param
+            The loaded parametrization data.
+        """
+        try:
+            import tomli as toml
+        except ImportError as e:
+            raise ImportError(
+                "A TOML package is required for TOML support. "
+                "You can install it via `pip install tomli`."
+            ) from e
+
+        with open(filepath, "rb") as fd:
+            return cls(**toml.load(fd))
+
+    def to_toml_file(self, filepath: PathLike, **kwargs: Any) -> None:
+        """
+        Save the parametrization to a TOML file.
+
+        Parameters
+        ----------
+        filepath : PathLike
+            The file path to save the parametrization data.
+        kwargs : dict
+            Additional keyword arguments for the dump function of the
+            TOML writer.
+
+        Raises
+        ------
+        ImportError
+            If the TOML writer package is not installed.
+        """
+        try:
+            import tomli_w as toml_w  # type: ignore
+        except ImportError:
+            try:
+                import toml as toml_w  # type: ignore
+            except ImportError as e:
+                raise ImportError(
+                    "A TOML writer package is required for TOML support. "
+                    "You can install one via `pip install tomli-w`."
+                ) from e
+
+        with open(filepath, "wb") as fd:
+            toml_w.dump(self.clean_model_dump(), fd, **kwargs)  # type: ignore
+
+    @classmethod
+    def from_yaml_file(cls: Type[Self], filepath: Path) -> Self:
+        """
+        Load a parametrization from a YAML file.
+        """
+        try:
+            import yaml
+        except ImportError as e:
+            raise ImportError(
+                "The PyYAML package is required for YAML support. "
+                "You can install it via `pip install pyyaml`."
+            ) from e
+
+        with open(filepath, encoding="utf-8") as fd:
+            return cls(**yaml.safe_load(fd))
+
+    def to_yaml_file(self, filepath: PathLike, **kwargs: Any) -> None:
+        """
+        Save the parametrization to a YAML file.
+
+        Parameters
+        ----------
+        filepath : PathLike
+            The file path to save the parametrization data.
+
+        Raises
+        ------
+        ImportError
+            If the PyYAML package is not installed.
+        """
+        try:
+            import yaml
+        except ImportError as e:
+            raise ImportError(
+                "The PyYAML package is required for YAML support. "
+                "You can install it via `pip install pyyaml`."
+            ) from e
+
+        with open(filepath, "w", encoding="utf-8") as fd:
+            yaml.dump(self.clean_model_dump(), fd, encoding="utf-8", **kwargs)
+
+
+
+class ParamPerAtom(BaseModel):
+    """
+    Complete self-contained representation of an extended tight-binding model.
+
+    The parametrization of a calculator with the model data must account for
+    missing transformations, like extracting the principal quantum numbers from
+    the shells. The respective checks are therefore deferred to the
+    instantiation of the calculator, while a deserialized model in `tblite`_ is
+    already verified at this stage.
+
+    .. _tblite: https://tblite.readthedocs.io
+    """
+
+    meta: Optional[Meta] = None
+    """Descriptive data on the model."""
+
+    hamiltonian: Optional[Hamiltonian] = None
+    """Definition of the Hamiltonian, always required."""
+
+    dispersion: Optional[Dispersion] = None
+    """Definition of the dispersion correction."""
+
+    repulsion: Optional[Repulsion] = None
+    """Definition of the repulsion contribution."""
+
+    charge: Optional[Charge] = None
+    """Definition of the isotropic second-order charge interactions."""
+
+    thirdorder: Optional[ThirdOrder] = None
+    """Definition of the isotropic third-order charge interactions."""
+
+    multipole: Optional[Multipole] = None
+    """Definition of the anisotropic second-order multipolar interactions."""
+
+    halogen: Optional[Halogen] = None
+    """Definition of the halogen bonding correction."""
+
+    element: Dict[str, Element]
+    """Element specific parameter records."""
+
+    solvation: Optional[Solvation] = None
+    """Definition of the solvation model."""
+
+    
+
+    def clean_model_dump(self) -> dict[str, Any]:
+        """
+        Clean the model from any ``None`` values.
+        """
+
+        return self.model_dump(exclude_none=True)
+
+    @property
+    def xtb_version(self) -> str:
+        """Return the version of the xtb package."""
+        if self.meta is None:
+            raise ValueError("Meta information is not available.")
+
+        if self.meta.name is None:
+            raise ValueError("Version information is not available.")
+
+        return self.meta.name
+
+    @classmethod
+    def from_dict(cls: Type[Self], data_dict: Dict[str, Any]) -> Self:
+        """
+        Load a parametrization from a Python dictionary.
+
+        Parameters
+        ----------
+        data_dict : Dict[str, Any]
+            The dictionary containing the parametrization data.
+
+        Returns
+        -------
+        Param
+            The loaded parametrization data.
+
+        Raises
+        ------
+        ValidationError
+            If the data in the dictionary fails validation.
+        """
+        try:
+            return cls.model_validate(data_dict)
+        except pydantic_core.ValidationError as e: # Use pydantic_core.ValidationError for Pydantic v2
+            # You might want to log or handle the error specifically here if needed
+            raise e
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Convert the parametrization to a Python dictionary.
+
+        Returns
+        -------
+        Dict[str, Any]
+            The parametrization data as a dictionary.
+        """
+        return self.model_dump()
+    
+    
 
     @classmethod
     def from_file(cls: Type[Self], filepath: PathLike) -> Self:

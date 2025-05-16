@@ -61,6 +61,9 @@ class Config:
     max_element: int
     """The maximum element number in the system."""
 
+    per_atom: bool  # Yufan
+    """Whether to use per-atom parameters."""
+
     # PyTorch
 
     anomaly: bool
@@ -140,6 +143,7 @@ class Config:
         # misc
         max_element: int = defaults.MAX_ELEMENT,
         skip_compat_checks: bool = False,
+        per_atom: bool = False,
     ) -> None:
         self.file = file
         self.strict = strict
@@ -154,6 +158,7 @@ class Config:
         self._batch_mode = batch_mode
 
         self.max_element = max_element
+        self.per_atom = per_atom  # Yufan
 
         if isinstance(method, str):
             if method.casefold() in labels.GFN1_XTB_STRS:

@@ -319,6 +319,48 @@ class ParamElementsPairsMixin(ParamShortcutMixin):
     parameter_tree: nn.Module
     """The parameter tree containing all parameters."""
 
+
+    # Yufan modification
+    def get_atom_param(
+        self,
+        unique: Tensor,
+        key: str,
+        dtype: torch.dtype | None = None,
+    ) -> Tensor:
+        """
+        Obtain a atom-wise delta.
+        Adding back is done in indexhelper.
+        
+        Parameters
+        ----------
+        unique : Tensor # what is this?
+
+        key : str
+            Name of the quantity to obtain (e.g. gam3 for Hubbard derivatives).
+        dtype : torch.dtype | None
+            Data type of the tensor. If ``None`` (default), the data type of
+            the class is used.
+
+        Returns
+        -------
+        Tensor
+            Parametrization of selected elements.
+            
+        Raises
+        ------
+        ValueError
+            If the type of the value of `key` is neither `float` nor `int`.
+        """
+        _dtype = dtype if dtype is not None else self.dtype
+
+
+    
+        # get from self.atom_param
+        return self.atom_param[key]
+
+        
+
+
     def get_elem_param(
         self,
         unique: Tensor,

@@ -244,14 +244,15 @@ class ES3(Interaction):
             )
             
             # traditional way
-            hd = ihelp.spread_uspecies_to_shell(self.hubbard_derivs) * scale
+            # hd = ihelp.spread_uspecies_to_shell(self.hubbard_derivs) * scale
             
-            # # ** Yufan added **
-            # # new way
-            # hd_peratom = self.hubbard_derivs_peratom
-            # # scale_peratom = self.shell_scale_peratom # no peratom scaling for now
-            # hd = (ihelp.spread_uspecies_to_shell(self.hubbard_derivs) + hd_peratom) * (scale)
-            # # ** Yufan added end **
+            # ** Yufan added **
+            # new way
+            hd_peratom = self.hubbard_derivs_peratom 
+            # scale_peratom = self.shell_scale_peratom # no peratom scaling for now
+            hd = (ihelp.spread_uspecies_to_shell(self.hubbard_derivs) + 
+                  ihelp.spread_atom_to_shell(hd_peratom)) * scale
+            # ** Yufan added end **
             
         self.cache = ES3Cache(
             hd, shell_resolved=(self.shell_scale is not None), **self.dd
@@ -415,11 +416,11 @@ def new_es3(
             )
 
     hubbard_derivs = par.get_elem_param(unique, "gam3") # only unique elements are considered
-    hubbard_derivs_peratom = None# par.get_peratom_param(unique, "gam3")
-    
+    hubbard_derivs_peratom = par.get_atom_param(unique, "gam3")
     print(f"hubbard_derivs: {hubbard_derivs}")
+    print(f"hubbard_derivs_peratom: {hubbard_derivs_peratom}")
 
-    shell_scale = (     # if shell is false, shell_scale is None
+    shell_scale = (     # global parameter(s)
         None
         if par.is_false("thirdorder", "shell")
         else torch.cat(

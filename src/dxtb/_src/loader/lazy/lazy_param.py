@@ -74,9 +74,9 @@ class LazyLoaderParam:
             The file path to the TOML file that needs to be lazily loaded.
         """
         self.filepath = filepath
-        self._loaded = None
+        self._loaded = None  # prepend with _ means private variable
 
-    def __getattr__(self, item: Any) -> Any:
+    def __getattr__(self, item: Any) -> Any:    
         """
         Loads the TOML file and initializes the `Param` object upon first
         attribute access.
