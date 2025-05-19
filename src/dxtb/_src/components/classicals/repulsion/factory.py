@@ -99,6 +99,10 @@ def new_repulsion(
     # get parameters for unique species
     arep = par.get_elem_param(unique, "arep", pad_val=0)
     zeff = par.get_elem_param(unique, "zeff", pad_val=0)
+    arep_peratom = par.get_atom_param(unique, "arep")
+    zeff_peratom = par.get_atom_param(unique, "zeff")
+    print(f'arep_peratom: {arep_peratom}')
+    print(f'zeff_peratom: {zeff_peratom}')
 
     if cutoff is None:
         cutoff = xtb.DEFAULT_REPULSION_CUTOFF
@@ -106,4 +110,7 @@ def new_repulsion(
 
     if with_analytical_gradient is True:
         return RepulsionAnalytical(arep, zeff, kexp, klight, cutoff, **dd)
-    return Repulsion(arep, zeff, kexp, klight, cutoff, **dd)
+    return Repulsion(arep, zeff, 
+                     arep_peratom, zeff_peratom,    # perAtom parameters
+                     kexp, klight, 
+                     cutoff, **dd)

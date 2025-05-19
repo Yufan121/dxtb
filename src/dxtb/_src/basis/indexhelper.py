@@ -616,6 +616,7 @@ class IndexHelper(TensorLike):
             Shell-resolved tensor.
         """
 
+
         return wrap_gather(x, dim, self.shells_to_atom, extra=extra)
 
     def spread_shell_to_orbital(

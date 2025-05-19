@@ -155,6 +155,8 @@ class BaseRepulsion(Classical):
         self,
         arep: Tensor,
         zeff: Tensor,
+        arep_peratom: Tensor,
+        zeff_peratom: Tensor,
         kexp: Tensor,
         klight: Tensor | None = None,
         cutoff: Tensor | float | int = xtb.DEFAULT_REPULSION_CUTOFF,
@@ -165,9 +167,11 @@ class BaseRepulsion(Classical):
 
         self.arep = arep.to(**self.dd)
         self.zeff = zeff.to(**self.dd)
+        self.arep_peratom = arep_peratom.to(**self.dd)
+        self.zeff_peratom = zeff_peratom.to(**self.dd)
         self.kexp = kexp.to(**self.dd)
-        self.cutoff = any_to_tensor(cutoff, **self.dd)
         self.klight = None if klight is None else klight.to(**self.dd)
+        self.cutoff = any_to_tensor(cutoff, **self.dd)
 
     @override
     def get_cache(
@@ -213,6 +217,16 @@ class BaseRepulsion(Classical):
         # spread
         arep = ihelp.spread_uspecies_to_atom(self.arep)
         zeff = ihelp.spread_uspecies_to_atom(self.zeff)
+        
+        
+        print(f'arep_peratom from cache: {self.arep_peratom}')
+        print(f'zeff_peratom from cache: {self.zeff_peratom}')
+        assert self.arep_peratom.shape == arep.shape, f"{self.arep_peratom.shape} != {arep.shape}"
+        assert self.zeff_peratom.shape == zeff.shape, f"{self.zeff_peratom.shape} != {zeff.shape}"
+        
+        arep = self.arep_peratom + arep
+        zeff = self.zeff_peratom + zeff
+        
         kexp = ihelp.spread_uspecies_to_atom(
             self.kexp.expand(torch.unique(numbers).shape)
         )
@@ -225,7 +239,7 @@ class BaseRepulsion(Classical):
         # gives nan's in gradgradcheck, because the epsilon is smaller than the
         # step size. But the actual gradient should be correct.
         eps = torch.finfo(arep.dtype).tiny
-        a = torch.where(
+        a = torch.where(    # create a = sqrt(ai * aj), replace masked values with 0
             mask,
             torch.sqrt(arep.unsqueeze(-1) * arep.unsqueeze(-2) + eps),
             torch.tensor(0.0, **self.dd),

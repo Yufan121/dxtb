@@ -196,6 +196,8 @@ class ES2(Interaction):
         self,
         hubbard: Tensor,
         lhubbard: Tensor | None = None,
+        hubbard_peratom: Tensor | None = None,
+        lhubbard_peratom: Tensor | None = None,
         average: AveragingFunction = harmonic_average,
         gexp: Tensor = torch.tensor(xtb.DEFAULT_ES2_GEXP),
         shell_resolved: bool = True,
@@ -206,6 +208,9 @@ class ES2(Interaction):
 
         self.hubbard = hubbard.to(**self.dd)
         self.lhubbard = lhubbard if lhubbard is None else lhubbard.to(**self.dd)
+        self.hubbard_peratom = hubbard_peratom.to(**self.dd)
+        self.lhubbard_peratom = lhubbard_peratom if lhubbard_peratom is None else lhubbard_peratom.to(**self.dd)
+        
         self.gexp = gexp.to(**self.dd)
         self.average = average
 
@@ -303,6 +308,8 @@ class ES2(Interaction):
             ihelp,
             self.hubbard,
             self.lhubbard,
+            self.hubbard_peratom,
+            self.lhubbard_peratom,
             self.gexp,
             self.average,
             self.shell_resolved,
@@ -343,6 +350,8 @@ class ES2(Interaction):
             ihelp,
             self.hubbard,
             self.lhubbard,
+            self.hubbard_peratom,
+            self.lhubbard_peratom,
             self.gexp,
             self.average,
         )
@@ -693,6 +702,7 @@ def coulomb_matrix_atom(
     positions: Tensor,
     ihelp: IndexHelper,
     hubbard: Tensor,
+    hubbard_peratom: Tensor,
     gexp: Tensor,
     average: AveragingFunction,
 ) -> Tensor:
@@ -726,6 +736,11 @@ def coulomb_matrix_atom(
     zero = torch.tensor(0.0, **dd)
 
     h = ihelp.spread_uspecies_to_atom(hubbard)
+    # not tested yet
+    print('coulomb matrix by atom is not tested yet.')
+    h_peratom = hubbard_peratom
+    assert h_peratom.shape == h.shape, f"{h_peratom.shape} != {h.shape}"
+    h = h + h_peratom
 
     dist = storch.cdist(positions, positions, p=2)
 
@@ -801,6 +816,8 @@ def coulomb_matrix_shell(
     ihelp: IndexHelper,
     hubbard: Tensor,
     lhubbard: Tensor,
+    hubbard_peratom: Tensor,
+    lhubbard_peratom: Tensor,
     gexp: Tensor,
     average: AveragingFunction,
 ) -> Tensor:
@@ -836,8 +853,36 @@ def coulomb_matrix_shell(
     zero = torch.tensor(0.0, **dd)
     eps = torch.tensor(torch.finfo(positions.dtype).eps, **dd)
 
+    # Original
+    # lh = ihelp.spread_ushell_to_shell(lhubbard)
+    # h = lh * ihelp.spread_uspecies_to_shell(hubbard)
+    
+    # Yufan: add peratom (h + h_peratom) * (lh + lh_peratom)
     lh = ihelp.spread_ushell_to_shell(lhubbard)
-    h = lh * ihelp.spread_uspecies_to_shell(hubbard)
+    h = ihelp.spread_uspecies_to_shell(hubbard)
+    
+    # get lh and h
+    # use ihelp.shells_per_atom to truncate (for each atom)
+    lh_peratom = []
+    for i, n_shell in enumerate(ihelp.shells_per_atom):
+        lh_peratom.append(lhubbard_peratom[i, :n_shell])
+    lh_peratom = torch.cat(lh_peratom)
+    
+    h_peratom = ihelp.spread_atom_to_shell(hubbard_peratom)
+    
+    assert lh_peratom.shape == lh.shape, f"{lh_peratom.shape} != {lh.shape}"
+    assert h_peratom.shape == h.shape, f"{h_peratom.shape} != {h.shape}"
+    
+    # use (lh_peratom + lh )  times  (h + h_peratom)
+    lh = lh + lh_peratom
+
+
+    h = lh * (h + h_peratom)
+    
+    
+    
+    
+    
 
     dist = storch.cdist(positions, positions, p=2)
 
@@ -939,6 +984,8 @@ class CoulombMatrixAG(torch.autograd.Function):
         ihelp: IndexHelper,
         hubbard: Tensor,
         lhubbard: Tensor,
+        hubbard_peratom: Tensor,
+        lhubbard_peratom: Tensor,
         gexp: Tensor,
         average: AveragingFunction,
         shell_resolved: bool,
@@ -950,7 +997,7 @@ class CoulombMatrixAG(torch.autograd.Function):
                 )
             else:
                 mat = coulomb_matrix_atom(
-                    mask, positions, ihelp, hubbard, gexp, average
+                    mask, positions, ihelp, hubbard, hubbard_peratom, gexp, average
                 )
 
         # save tensor variables the intended way
@@ -1094,13 +1141,21 @@ def new_es2(
             )
 
     hubbard = par.get_elem_param(unique, "gam")
+    hubbard_peratom = par.get_atom_param(unique, "gam")
+
+    
     lhubbard = (
         par.get_elem_param(unique, "lgam") if shell_resolved is True else None
+    )
+    lhubbard_peratom = (
+        par.get_atom_param(unique, "lgam") if shell_resolved is True else None
     )
 
     return ES2(
         hubbard,
         lhubbard,
+        hubbard_peratom,
+        lhubbard_peratom,
         average=averaging_function[par.get("charge.effective.average")],
         gexp=par.get("charge.effective.gexp"),
         **dd,

@@ -249,6 +249,7 @@ class ES3(Interaction):
             # ** Yufan added **
             # new way
             hd_peratom = self.hubbard_derivs_peratom 
+            assert ihelp.spread_atom_to_shell(hd_peratom).shape == ihelp.spread_uspecies_to_shell(self.hubbard_derivs).shape, f"{ihelp.spread_atom_to_shell(hd_peratom).shape} != {ihelp.spread_uspecies_to_shell(self.hubbard_derivs).shape}"
             # scale_peratom = self.shell_scale_peratom # no peratom scaling for now
             hd = (ihelp.spread_uspecies_to_shell(self.hubbard_derivs) + 
                   ihelp.spread_atom_to_shell(hd_peratom)) * scale
@@ -417,8 +418,8 @@ def new_es3(
 
     hubbard_derivs = par.get_elem_param(unique, "gam3") # only unique elements are considered
     hubbard_derivs_peratom = par.get_atom_param(unique, "gam3")
-    print(f"hubbard_derivs: {hubbard_derivs}")
-    print(f"hubbard_derivs_peratom: {hubbard_derivs_peratom}")
+    # print(f"hubbard_derivs: {hubbard_derivs}")
+    # print(f"hubbard_derivs_peratom: {hubbard_derivs_peratom}")
 
     shell_scale = (     # global parameter(s)
         None

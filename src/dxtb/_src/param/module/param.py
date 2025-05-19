@@ -180,7 +180,7 @@ class ParamModule(nn.Module, ParamElementsPairsMixin):
     def __init__(
         self,
         par: Param,
-        atom_param_dict: dict[str, Any] | None = None,
+        # atom_param_dict: dict[str, Any] | None = None,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
     ) -> None:
@@ -203,12 +203,23 @@ class ParamModule(nn.Module, ParamElementsPairsMixin):
         
         # Yufan: add delta to the parameter tree
         self.atom_param = par._per_atom_params_dict
-
+        # use a function to do proper unsqueeze
+        # self.atom_param = self._unsqueeze_atom_param(self.atom_param)
 
         # Dummy tensor to get the device and dtype.
         self.register_buffer(
             "dummy", torch.empty(0, device=device, dtype=dtype)
         )
+
+    def _unsqueeze_atom_param(self, atom_param: dict[str, Any]) -> dict[str, Any]:
+        """
+        Unsqueeze the atom parameter dictionary (of tensor).
+        """
+        for key, value in atom_param.items():
+            if isinstance(value, torch.Tensor):
+                atom_param[key] = value.unsqueeze(0)
+                
+        return atom_param
 
     @property
     def device(self) -> torch.device:

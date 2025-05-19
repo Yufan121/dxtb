@@ -354,6 +354,11 @@ class ParamElementsPairsMixin(ParamShortcutMixin):
         _dtype = dtype if dtype is not None else self.dtype
 
 
+
+
+        # For len>1 parameters, need to truncate to equal length for the specific element
+    
+    
     
         # get from self.atom_param
         return self.atom_param[key]
@@ -400,7 +405,7 @@ class ParamElementsPairsMixin(ParamShortcutMixin):
         def tensor1d(val: int | float) -> torch.Tensor:
             return torch.tensor([val], device=self.device, dtype=_dtype)
 
-        for number in torch.atleast_1d(unique):
+        for number in torch.atleast_1d(unique): # number is the atomic number
             symbol = pse.Z2S.get(int(number), "X")
 
             # If symbol does not exist, it will be treated as padding

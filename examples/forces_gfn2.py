@@ -74,32 +74,67 @@ len_ele_param_enum = [3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 pair_param_enum = ['c6matrix']
 
 
+
+
 atom_param_dict = { # arranged by (param, atom). pass to param iniatialization.
-    "levels": [[0,0,0], [0,0,0], [0,0,0]],
-    "slater": [[0,0,0], [0,0,0], [0,0,0]],
-    "ngauss": [[0,0,0], [0,0,0], [0,0,0]],
-    "refocc": [[0,0,0], [0,0,0], [0,0,0]],
-    "shpoly": [[0,0,0], [0,0,0], [0,0,0]],
-    "kcn": [[0,0,0], [0,0,0], [0,0,0]],
-    "gam": [0, 0, 0],
-    "lgam": [[0,0,0], [0,0,0], [0,0,0]],
-    "gam3": [0.5, 0.5, 0.5],
-    "zeff": [0, 0, 0],
-    "arep": [0, 0, 0],
-    "xbond": [0, 0, 0],
-    "en": [0, 0, 0],
-    "dkernel": [0, 0, 0],
-    "qkernel": [0, 0, 0],
-    "mprad": [0, 0, 0],
-    "mpvcn": [0, 0, 0],
+    # global parameters
+    "wexp": 0.0,
+    "kpol": 0.0,
+    "enscale": 0.0,
+    "ss": 0.0,
+    "pp": 0.0,
+    "dd": 0.0,
+    "sd": 0.0,
+    "pd": 0.0,
+    "s6": 0.0,
+    "s8": 0.0,
+    "a1": 0.0,
+    "a2": 0.0,
+    "s9": 0.0,
+    "kexp": 0.0,
+    "klight": 0.0,
+    "gexp": 0.0,
+    "s": 0.0,
+    "p": 0.0,
+    "d": 0.0,
+    "dmp3": 0.0,
+    "dmp5": 0.0,
+    "kexp": 0.0,
+    "shift": 0.0,
+    "rmax": 0.0,
+    
+
+    # atoms' parameters
+    "levels": [[0,0,0], [0,0,0]],   
+    "slater": [[0,0,0], [0,0,0]],   
+    "ngauss": [[0,0,0], [0,0,0]],   # int should be ignored
+    "refocc": [[0,0,0], [0,0,0]],   # int might be ignored
+    "shpoly": [[0,0,0], [0,0,0]],   
+    "kcn": [[0,0,0], [0,0,0]],
+    "gam": [0, 0],   # Done
+    "lgam": [[0.0,0.1,0.2], [0.3,0.4,0.5]],  # Done
+    "gam3": [0.5, 0.5],     # Done
+    "zeff": [10, 0],    # dF/dp problem
+    "arep": [10, 0],    # dF/dp problem
+    "xbond": [0, 0],
+    "en": [0, 0],
+    # multipole parameters
+    "dkernel": [0, 0],         # Done
+    "qkernel": [0, 0],         # Done
+    "mprad": [0, 0],          # Done
+    "mpvcn": [0, 0],          # Done
+    
+    # pair parameters
+    "c6matrix": [[0,0], [0,0]],
 }
 # make all values tensors and requires_grad = True
 for key, value in atom_param_dict.items():
-    if isinstance(value, list):
+    if isinstance(value, list) or isinstance(value, float):
         atom_param_dict[key] = torch.tensor(value, dtype=torch.double, requires_grad=True)
     else:
         raise ValueError(f"Invalid param value type for {key}: {type(value)}")
         
+# print(atom_param_dict)
 
 # pass the parameters to the calculator
 # param_atom = ParamPerAtom.from_dict(atom_param_dict)
@@ -122,7 +157,7 @@ pos = positions.clone().requires_grad_(True)
 energy = calc.energy(pos, chrg=charge)
 
 # Calculate forces as negative gradient of energy
-(g,) = torch.autograd.grad(energy, pos, grad_outputs=torch.ones_like(energy))
+(g,) = torch.autograd.grad(energy, pos, grad_outputs=torch.ones_like(energy), retain_graph=True, create_graph=True)
 forces1 = -g
 
 dxtb.timer.print()
@@ -154,3 +189,25 @@ print("\nForce statistics:")
 print(f"Max force: {forces1.abs().max().item():.6f} Hartree/Bohr")
 print(f"Mean force: {forces1.abs().mean().item():.6f} Hartree/Bohr")
 print(f"RMS force: {torch.sqrt((forces1**2).mean()).item():.6f} Hartree/Bohr")
+
+######################################################################
+
+print("\n\n\n")
+print(f"Calculating dE/dp and dF/dp using torch.autograd.grad")
+
+def get_grad(energy, forces, param):
+    grad_energy = torch.autograd.grad(energy, param, grad_outputs=torch.ones_like(energy), retain_graph=True, allow_unused=True)
+    grad_forces = torch.autograd.grad(forces, param, grad_outputs=torch.ones_like(forces), retain_graph=True, allow_unused=True)
+    
+    return grad_energy, grad_forces
+
+for key, value in atom_param_dict.items():
+    if isinstance(value, torch.Tensor) and value.requires_grad:
+        print(f"{key} is a tensor and requires grad")
+        grad_energy, grad_forces = get_grad(energy, forces1, value)
+        print(f"dE/dp: {grad_energy}")
+        print(f"dF/dp: {grad_forces}")
+        print("\n")
+    else:
+        raise ValueError(f"Invalid param value type for {key}: {type(value)}")
+

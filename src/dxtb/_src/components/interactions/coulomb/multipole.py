@@ -221,7 +221,7 @@ class AES2(Interaction):
     vcn: Tensor
     """Valence coordination number."""
 
-    __slots__ = [
+    __slots__ = [   # mean parameters
         "dmp3",
         "dmp5",
         "dkernel",
@@ -244,6 +244,12 @@ class AES2(Interaction):
         rmax: Tensor,
         rad: Tensor,
         vcn: Tensor,
+        # perAtom parameters
+        dkernel_peratom: Tensor,
+        qkernel_peratom: Tensor,
+        rad_peratom: Tensor,
+        vcn_peratom: Tensor,
+        # other parameters
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
     ) -> None:
@@ -261,6 +267,12 @@ class AES2(Interaction):
         self.qkernel = qkernel.to(**self.dd)
         self.rad = rad.to(**self.dd)
         self.vcn = vcn.to(**self.dd)
+        
+        # perAtom parameters
+        self.dkernel_peratom = dkernel_peratom.to(**self.dd)
+        self.qkernel_peratom = qkernel_peratom.to(**self.dd)
+        self.rad_peratom = rad_peratom.to(**self.dd)
+        self.vcn_peratom = vcn_peratom.to(**self.dd)
 
     # pylint: disable=unused-argument
     @override
@@ -316,11 +328,21 @@ class AES2(Interaction):
 
         dkernel = ihelp.spread_uspecies_to_atom(self.dkernel).unsqueeze(-1)
         qkernel = ihelp.spread_uspecies_to_atom(self.qkernel).unsqueeze(-1)
-
+        # Yufan
+        assert self.dkernel_peratom.unsqueeze(-1).shape == dkernel.shape, f"{self.dkernel_peratom.unsqueeze(-1).shape} != {dkernel.shape}"
+        assert self.qkernel_peratom.unsqueeze(-1).shape == qkernel.shape, f"{self.qkernel_peratom.unsqueeze(-1).shape} != {qkernel.shape}"
+        dkernel = self.dkernel_peratom.unsqueeze(-1) + dkernel
+        qkernel = self.qkernel_peratom.unsqueeze(-1) + qkernel
+        
         from tad_mctc.ncoord import cn_d3, gfn2_count
 
         vcn = ihelp.spread_uspecies_to_atom(self.vcn)
         rad = ihelp.spread_uspecies_to_atom(self.rad)
+        # Yufan
+        assert self.vcn_peratom.shape == vcn.shape, f"{self.vcn_peratom.shape} != {vcn.shape}"
+        assert self.rad_peratom.shape == rad.shape, f"{self.rad_peratom.shape} != {rad.shape}"
+        vcn = self.vcn_peratom + vcn
+        rad = self.rad_peratom + rad
 
         cn = cn_d3(numbers, positions, counting_function=gfn2_count)
 
@@ -681,6 +703,11 @@ def new_aes2(
     qkernel = par.get_elem_param(unique, "qkernel")
     rad = par.get_elem_param(unique, "mprad")
     vcn = par.get_elem_param(unique, "mpvcn")
+    
+    dkernel_peratom = par.get_atom_param(unique, "dkernel")
+    qkernel_peratom = par.get_atom_param(unique, "qkernel")
+    rad_peratom = par.get_atom_param(unique, "mprad")
+    vcn_peratom = par.get_atom_param(unique, "mpvcn")
 
     return AES2(
         dmp3=par.get("multipole.damped.dmp3"),
@@ -692,5 +719,10 @@ def new_aes2(
         rmax=par.get("multipole.damped.rmax"),
         rad=rad,
         vcn=vcn,
+        # perAtom parameters
+        dkernel_peratom=dkernel_peratom,
+        qkernel_peratom=qkernel_peratom,
+        rad_peratom=rad_peratom,
+        vcn_peratom=vcn_peratom,
         **dd,
     )
