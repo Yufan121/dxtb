@@ -54,6 +54,8 @@ class HamiltonianABC(ABC):
         Tensor
             Off-site scaling factor for the Hamiltonian.
         """
+        
+    
 
     @abstractmethod
     def _get_elem_valence(self, par: ParamModule) -> Tensor:

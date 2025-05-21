@@ -240,9 +240,11 @@ class ES3(Interaction):
             hd = ihelp.spread_uspecies_to_atom(self.hubbard_derivs)
         else:
             scale = ihelp.spread_ushell_to_shell(           # spread the element-wise shell scale to the shell scale
-                self.shell_scale[ihelp.unique_angular]
+                self.shell_scale[ihelp.unique_angular] +
+                self.shell_scale_peratom[ihelp.unique_angular]  # Yufan added
             )
             
+                        
             # traditional way
             # hd = ihelp.spread_uspecies_to_shell(self.hubbard_derivs) * scale
             
@@ -435,20 +437,20 @@ def new_es3(
     )
     
     # Yufan added
-    # no peratom scaling for now
-    # shell_scale_peratom = (
-    #     None
-    #     if par.is_false("thirdorder", "shell")
-    #     else torch.cat(
-    #         [torch.atleast_1d(par.get("thirdorder.shell.s")),
-    #          torch.atleast_1d(par.get("thirdorder.shell.p")),
-    #          torch.atleast_1d(par.get("thirdorder.shell.d"))],
-    #         dim=0,
-    #     )
-    # )
+    shell_scale_peratom = (
+        None
+        if par.is_false("thirdorder", "shell")
+        else torch.cat(
+            [torch.atleast_1d(par.get_atom_param(unique, key="s")),
+             torch.atleast_1d(par.get_atom_param(unique, key="p")),
+             torch.atleast_1d(par.get_atom_param(unique, key="d"))],
+        )
+    )
+
+
     # Yufan added end
     return ES3(hubbard_derivs, shell_scale=shell_scale, 
                # Yufan added
-               hubbard_derivs_peratom=hubbard_derivs_peratom, shell_scale_peratom=None,
+               hubbard_derivs_peratom=hubbard_derivs_peratom, shell_scale_peratom=shell_scale_peratom,
                # Yufan added end
                **dd)

@@ -88,7 +88,7 @@ class BaseHamiltonian(HamiltonianABC, TensorLike):
     cn: CNFunction | None
     """Coordination number function."""
 
-    __slots__ = [
+    __slots__ = [   # slots 是用于存储类属性的内存空间, 可以提高性能
         "numbers",
         "unique",
         "ihelp",
@@ -145,14 +145,29 @@ class BaseHamiltonian(HamiltonianABC, TensorLike):
         self.shpoly = par.get_elem_param(self.unique, "shpoly", pad_val=PAD)
         self.refocc = par.get_elem_param(self.unique, "refocc", pad_val=PAD)
         self.valence = self._get_elem_valence(par)
+        
+        # load per atom deltas
+        self.en_peratom = par.get_atom_param(self.unique, "en")
+        self.kcn_peratom = par.get_atom_param(self.unique, "kcn")
+        self.selfenergy_peratom = par.get_atom_param(self.unique, "levels")
+        self.shpoly_peratom = par.get_atom_param(self.unique, "shpoly")
+        # self.refocc_peratom = par.get_atom_param(self.unique, "refocc")
+        
 
         # shell-pair-resolved pair parameters
-        self.hscale = self._get_hscale(par)
-        self.kpair = par.get_pair_param(self.unique.tolist())
+        self.hscale = self._get_hscale(par) # 壳层间缩放因子矩阵, per ushell pair
+        self.kpair = par.get_pair_param(self.unique.tolist())       # 怎么处理，目前全1，暂时不处理
 
+        self.hscale_peratom = self._get_hscale_peratomshell(par) # 
+        # TODO, kpair， pending for now, currently all 1
+        
         # unit conversion
         self.selfenergy = self.selfenergy * EV2AU
         self.kcn = self.kcn * EV2AU
+        
+        # unit conversion for per atom parameters
+        self.selfenergy_peratom = self.selfenergy_peratom * EV2AU
+        self.kcn_peratom = self.kcn_peratom * EV2AU
 
         tensors = [
             ("hscale", self.hscale),
@@ -285,11 +300,25 @@ class BaseHamiltonian(HamiltonianABC, TensorLike):
             cn = self.cn(self.numbers, positions)
 
         kcn = self.ihelp.spread_ushell_to_shell(self.kcn)
-
+        kcn_peratom_list = []   # 获取每个原子的kcn
+        for i, n_shell in enumerate(self.ihelp.shells_per_atom):
+            kcn_peratom_list.append(self.kcn_peratom[i, :n_shell])
+        kcn_peratom_flat = torch.cat(kcn_peratom_list)
+        assert kcn_peratom_flat.shape == kcn.shape, f"kcn_peratom_flat.shape: {kcn_peratom_flat.shape}, kcn.shape: {kcn.shape}"
+        kcn = kcn + kcn_peratom_flat
+        
         # formula differs from paper to be consistent with GFN2 -> "kcn" adapted
-        selfenergy = self.ihelp.spread_ushell_to_shell(
-            self.selfenergy
-        ) - kcn * self.ihelp.spread_atom_to_shell(cn)
+        # selfenergy = self.ihelp.spread_ushell_to_shell(
+        #     self.selfenergy
+        # ) - kcn * self.ihelp.spread_atom_to_shell(cn)
+        selfenergy_peratom_list = [] # 获取每个原子的selfenergy
+        for i, n_shell in enumerate(self.ihelp.shells_per_atom):
+            selfenergy_peratom_list.append(self.selfenergy_peratom[i, :n_shell])
+        selfenergy_peratom_flat = torch.cat(selfenergy_peratom_list)
+        selfenergy = self.ihelp.spread_ushell_to_shell(self.selfenergy)
+        assert selfenergy_peratom_flat.shape == selfenergy.shape, f"selfenergy_peratom_flat.shape: {selfenergy_peratom_flat.shape}, selfenergy.shape: {selfenergy.shape}"
+        selfenergy = selfenergy + selfenergy_peratom_flat
+        selfenergy = selfenergy - kcn * self.ihelp.spread_atom_to_shell(cn)
 
         # ----------------------
         # Eq.24: PI(R_AB, l, l')
@@ -304,6 +333,12 @@ class BaseHamiltonian(HamiltonianABC, TensorLike):
         )
 
         shpoly = self.ihelp.spread_ushell_to_shell(self.shpoly)
+        shpoly_peratom_list = [] # 获取每个原子的shpoly
+        for i, n_shell in enumerate(self.ihelp.shells_per_atom):
+            shpoly_peratom_list.append(self.shpoly_peratom[i, :n_shell])
+        shpoly_peratom_flat = torch.cat(shpoly_peratom_list)
+        assert shpoly_peratom_flat.shape == shpoly.shape, f"shpoly_peratom_flat.shape: {shpoly_peratom_flat.shape}, shpoly.shape: {shpoly.shape}"
+        shpoly = shpoly + shpoly_peratom_flat
         var_pi = (1.0 + shpoly.unsqueeze(-1) * rr_shell) * (
             1.0 + shpoly.unsqueeze(-2) * rr_shell
         )
@@ -312,6 +347,9 @@ class BaseHamiltonian(HamiltonianABC, TensorLike):
         # Eq.28: X(EN_A, EN_B)
         # --------------------
         en = self.ihelp.spread_uspecies_to_shell(self.en)
+        en_peratom = self.ihelp.spread_atom_to_shell(self.en_peratom)
+        assert en_peratom.shape == en.shape, f"en_peratom.shape: {en_peratom.shape}, en.shape: {en.shape}"
+        en = en + en_peratom
         var_x = torch.where(
             mask_shell_diagonal,
             1.0
@@ -326,6 +364,9 @@ class BaseHamiltonian(HamiltonianABC, TensorLike):
         kpair = self.ihelp.spread_uspecies_to_shell(self.kpair, dim=(-2, -1))
         hscale = self.ihelp.spread_ushell_to_shell(self.hscale, dim=(-2, -1))
         valence = self.ihelp.spread_ushell_to_shell(self.valence)
+
+        assert self.hscale_peratom.shape == hscale.shape, f"self.hscale_peratom.shape: {self.hscale_peratom.shape}, hscale.shape: {hscale.shape}"
+        hscale = hscale + self.hscale_peratom
 
         var_k = torch.where(
             valence.unsqueeze(-1) * valence.unsqueeze(-2),

@@ -114,7 +114,7 @@ class ParamGetterMixin:
             return node.value
 
         if unwrapped and isinstance(node, ParameterModule):
-            return node.param
+            return node.param + self.atom_param[k]
         return node
 
     # Recursively set differentiable (requires_grad=True) for the parameter(s)
@@ -353,12 +353,8 @@ class ParamElementsPairsMixin(ParamShortcutMixin):
         """
         _dtype = dtype if dtype is not None else self.dtype
 
-
-
-
         # For len>1 parameters, need to truncate to equal length for the specific element
-    
-    
+        # done in downstream functions
     
         # get from self.atom_param
         return self.atom_param[key]
@@ -501,21 +497,27 @@ class ParamElementsPairsMixin(ParamShortcutMixin):
         Tensor
             Parametrization of all pairs of ``symbols``.
         """
+        # 1. 获取成对参数表（通常是ModuleDict，key为"A-B"，value为ParameterModule）
         par_pair = self.get("hamiltonian.xtb.kpair", unwrapped=False)
+        # 2. 检查参数表类型，确保为ModuleDict
         if not isinstance(par_pair, nn.ModuleDict):
             raise TypeError("The 'kpair' branch is not a ModuleDict.")
 
+        # 3. 如果输入为原子序数（int），转换为元素符号（如1->"H"）
         if is_int_list(symbols):
             symbols = [pse.Z2S.get(i, "X") for i in symbols]
 
+        # 4. 初始化参数矩阵，默认全为1.0，shape=[n元素, n元素]
         ndim = len(symbols)
         pair_mat = torch.ones((ndim, ndim), **self.dd)
+        # 5. 双重循环遍历所有元素对，查找参数表并赋值
         for i, isp in enumerate(symbols):
             for j, jsp in enumerate(symbols):
-                # Watch format! ("element1-element2")
+                # 5.1 构造key，先查"A-B"，再查"B-A"
                 key1 = f"{isp}-{jsp}"
                 key2 = f"{jsp}-{isp}"
 
+                # 5.2 查找参数表，优先key1，其次key2，若都没有则用默认值1.0
                 if key1 in par_pair:
                     p = par_pair[key1]
                     assert isinstance(p, ParameterModule)
@@ -527,8 +529,10 @@ class ParamElementsPairsMixin(ParamShortcutMixin):
                 else:
                     value = torch.tensor(1.0, **self.dd)
 
+                # 5.3 将参数赋值到矩阵对应位置
                 pair_mat[i, j] = value
 
+        # 6. 返回所有元素对的参数矩阵
         return pair_mat
 
     def get_elem_valence(self, unique: Tensor, pad_val: int = -1) -> Tensor:

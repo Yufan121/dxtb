@@ -211,15 +211,15 @@ class ParamModule(nn.Module, ParamElementsPairsMixin):
             "dummy", torch.empty(0, device=device, dtype=dtype)
         )
 
-    def _unsqueeze_atom_param(self, atom_param: dict[str, Any]) -> dict[str, Any]:
-        """
-        Unsqueeze the atom parameter dictionary (of tensor).
-        """
-        for key, value in atom_param.items():
-            if isinstance(value, torch.Tensor):
-                atom_param[key] = value.unsqueeze(0)
+    # def _unsqueeze_atom_param(self, atom_param: dict[str, Any]) -> dict[str, Any]:
+    #     """
+    #     Unsqueeze the atom parameter dictionary (of tensor).
+    #     """
+    #     for key, value in atom_param.items():
+    #         if isinstance(value, torch.Tensor):
+    #             atom_param[key] = value.unsqueeze(0)
                 
-        return atom_param
+    #     return atom_param
 
     @property
     def device(self) -> torch.device:

@@ -77,6 +77,19 @@ class GFN2Hamiltonian(BaseHamiltonian):
         -------
         Tensor
             Off-site scaling factor for the Hamiltonian.
+
+        ----------------------
+        中文详细解释：
+        该函数用于为GFN2-xTB哈密顿量生成"壳层间缩放因子矩阵"，即每一对壳层（如s、p、d等）之间的缩放系数 k_sh，用于后续哈密顿量矩阵元的修饰。
+
+        主要步骤：
+        1. 提取参数（如壳层参数表、Slater指数、指数参数等）。
+        2. 角动量数字与标签（s,p,d...）的映射。
+        3. 计算Slater指数缩放矩阵 zmat。
+        4. 双重循环遍历所有壳层对(i,j)，查找参数表并结合zmat生成最终的k_sh矩阵。
+        5. 返回该矩阵，用于后续哈密顿量构建。
+
+        该矩阵是GFN2-xTB能量/力计算的核心一环。
         """
         if par.is_none("hamiltonian"):
             raise RuntimeError("No Hamiltonian specified.")
@@ -101,9 +114,16 @@ class GFN2Hamiltonian(BaseHamiltonian):
         z = par.get_elem_param(self.unique, "slater", pad_val=PAD)
         zi = z.unsqueeze(-1)
         zj = z.unsqueeze(-2)
-        zmat = storch.pow(
-            2 * storch.divide(storch.sqrt(zi * zj), (zi + zj)), wexp
+        numerator = torch.sqrt(zi * zj)
+        denominator = zi + zj
+
+        # 对分母为0的位置，直接令结果为0（或你需要的其它值）
+        safe_fraction = torch.where(
+            denominator == 0,
+            torch.zeros_like(denominator),  # 或 torch.ones_like(denominator) 取决于你的物理需求
+            numerator / denominator
         )
+        zmat = storch.pow(2 * safe_fraction, wexp)
 
         ksh = torch.ones((len(ushells), len(ushells)), **self.dd)
         for i, ang_i in enumerate(ushells):
@@ -153,6 +173,84 @@ class GFN2Hamiltonian(BaseHamiltonian):
 
                 ksh[i, j] = kij * zmat[i, j]
 
+        return ksh
+
+    def _get_hscale_peratomshell(self, par: ParamModule) -> Tensor:
+        """
+        用每壳层参数生成壳层间缩放因子矩阵 ksh。
+
+        Parameters
+        ----------
+        per_shell_param : Tensor
+            每个 unique shell 的参数（如 slater 指数），shape = [n_shell]
+        shell : dict
+            哈密顿量参数表（如原有 par.get("hamiltonian.xtb.shell")）
+        wexp : float
+            指数参数
+
+        Returns
+        -------
+        Tensor
+            壳层间缩放因子矩阵 ksh，shape = [n_shell, n_shell]
+        """
+        shell = par.get("hamiltonian.xtb.shell")    # shell scaling factor
+        wexp = par.get("hamiltonian.xtb.wexp")
+        ushells = self.ihelp.unique_angular
+        angular2label = {0: "s", 1: "p", 2: "d", 3: "f", 4: "g"}
+        angular_labels = [angular2label.get(int(ang), PAD) for ang in ushells]
+
+        z = par.get_atom_param(self.unique, "slater")  # shape: [n_shell]
+        z_list = []
+        for i, n_shell in enumerate(self.ihelp.shells_per_atom):
+            z_list.append(z[i, :n_shell])
+        z = torch.cat(z_list)
+        # assert z.shape == (self.n_shell,), f"z.shape: {z.shape}, (self.n_shell,): {self.n_shell}"
+        
+        z = z.view(-1) # 1, n_shell 
+        zi = z.unsqueeze(-1)
+        zj = z.unsqueeze(-2)
+        numerator = torch.sqrt(zi * zj)
+        denominator = zi + zj
+
+        # 对分母为0的位置，直接令结果为0（或你需要的其它值）
+        safe_fraction = torch.where(
+            denominator == 0,
+            torch.zeros_like(denominator),  # 或 torch.ones_like(denominator) 取决于你的物理需求
+            numerator / denominator
+        )
+        zmat = storch.pow(2 * safe_fraction, wexp)
+
+        shell_to_ushell = self.ihelp.shells_to_ushell   # the map
+        len_ = len(shell_to_ushell)
+        ksh = torch.ones((len_, len_), **self.dd)
+        for i, ang_i in enumerate(shell_to_ushell): # map shell to ushell, then retrieve the kij
+            ish = shell_to_ushell[i]    # ushell index
+            ang_i = angular_labels[ish]
+            for j, ang_j in enumerate(shell_to_ushell):
+                jsh = shell_to_ushell[j]
+                ang_j = angular_labels[jsh]
+                key1 = f"{ang_i}{ang_j}"
+                key2 = f"{ang_j}{ang_i}"
+                if key1 in shell:
+                    val: ParameterModule = shell[key1]
+                    kij = val.param.view(-1)[0]
+                elif key2 in shell:
+                    val: ParameterModule = shell[key2]
+                    kij = val.param.view(-1)[0]
+                else:
+                    key_ii = f"{ang_i}{ang_i}"
+                    key_jj = f"{ang_j}{ang_j}"
+                    if PAD not in (ang_i, ang_j):
+                        if key_ii not in shell or key_jj not in shell:
+                            raise KeyError("Missing shell keys")
+                        val_ii: ParameterModule = shell[key_ii]
+                        val_jj: ParameterModule = shell[key_jj]
+                        kij = 0.5 * (
+                            val_ii.param.view(-1)[0] + val_jj.param.view(-1)[0]
+                        )
+                    else:
+                        kij = 1.0
+                ksh[i, j] = kij * zmat[i, j]
         return ksh
 
     def get_gradient(
