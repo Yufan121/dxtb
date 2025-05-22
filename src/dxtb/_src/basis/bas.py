@@ -108,6 +108,7 @@ class Basis(TensorLike):
         "slater",
         "pqn",
         "valence",
+        "slater_peratom",  
     ]
 
     def __init__(
@@ -137,6 +138,16 @@ class Basis(TensorLike):
         self.valence = par.get_elem_valence(self.unique)
         self.shells = par.get_elem_shells(self.unique)
 
+        # Yufan added
+        self.slater_peratom = par.get_atom_param(self.unique, "slater")
+
+        slater_peratom_list = [] # 获取每个原子的slater
+        for i, n_shell in enumerate(self.ihelp.shells_per_atom):
+            slater_peratom_list.append(self.slater_peratom[i, :n_shell])
+        slater_peratom_flat = torch.cat(slater_peratom_list)
+        assert slater_peratom_flat.shape == self.ihelp.shells_to_ushell.shape, f"slater_peratom_flat.shape: {slater_peratom_flat.shape}, shells_to_ushell.shape: {self.ihelp.shells_to_ushell.shape}"
+        self.slater_peratom = slater_peratom_flat   # shape (n_shells_all)
+
         # When a CUDA device is used, the parametrization remains on CPU, even
         # when the libcint library is requested via the `force_cpu_for_libcint`
         # flag. This flag only moves the positions and the IndexHelper (see
@@ -146,6 +157,9 @@ class Basis(TensorLike):
         self.slater = self.slater.to(device=self.device)
         self.pqn = self.pqn.to(device=self.device)
         self.valence = self.valence.to(device=self.device)
+        
+        # Yufan added
+        self.slater_peratom = self.slater_peratom.to(device=self.device)
 
     def create_cgtos(self) -> tuple[list[Tensor], list[Tensor]]:
         """
@@ -477,10 +491,10 @@ class Basis(TensorLike):
         coeffs = []
         alphas = []
 
-        s = 0
+        s = 0   # s is the index of the ushells
         for i in range(self.unique.size(0)):
             bases: list[libcint.CGTOBasis] = []
-            shells = self.ihelp.ushells_per_unique[i]
+            shells = self.ihelp.ushells_per_unique[i]   # from eid to n_shells
 
             if shells == 0:
                 s += 1
@@ -508,6 +522,35 @@ class Basis(TensorLike):
 
                 # increment
                 s += 1
+            
+                
+        # tracking only required for orthogonalization
+        alphas_peratom = []
+        coeffs_peratom = []
+        s_peratom = 0   # unique shell index
+        # Yufan added, per-atom alphas and coeffs
+        for aid in range(self.numbers.size(0)):
+            eid = self.ihelp.atom_to_unique[aid]
+            shells = self.ihelp.ushells_per_unique[eid]
+            for l in range(shells):
+                sid = self.ihelp.shells_to_ushell[s_peratom]
+                alpha, coeff = slater_to_gauss(
+                    self.ngauss[sid],
+                    self.pqn[sid],
+                    self.ihelp.unique_angular[sid],
+                    self.slater_peratom[s_peratom],
+                )
+                # 只在本原子内部正交化
+                if self.valence[sid].item() is False and l > 0:
+                    alpha, coeff = orthogonalize(
+                        (alphas_peratom[-1], alpha),
+                        (coeffs_peratom[-1], coeff),
+                    )
+                alphas_peratom.append(alpha)
+                coeffs_peratom.append(coeff)
+                s_peratom += 1
+
+
 
         ##########
         # SINGLE #
@@ -515,22 +558,26 @@ class Basis(TensorLike):
 
         if self.ihelp.batch_mode == 0:
             # reset counter
-            s = 0
+            s = 0   # all atom shell index
 
             # collect final basis for each atom in list
             # (same order as `numbers`)
             atombasis: list[libcint.AtomCGTOBasis] = []
 
-            for i, num in enumerate(self.numbers):
+            for i, num in enumerate(self.numbers):   # i is the atom index
                 bases: list[libcint.CGTOBasis] = []
 
                 for _ in range(self.ihelp.shells_per_atom[i]):
-                    idx = self.ihelp.shells_to_ushell[s]
+                    idx = self.ihelp.shells_to_ushell[s]    # ushell index
 
+                    # check if the shape is the same
+                    assert alphas[idx].shape == alphas_peratom[s].shape, f"alphas[idx].shape: {alphas[idx].shape}, alphas_peratom[s].shape: {alphas_peratom[s].shape}"
+                    assert coeffs[idx].shape == coeffs_peratom[s].shape, f"coeffs[idx].shape: {coeffs[idx].shape}, coeffs_peratom[s].shape: {coeffs_peratom[s].shape}"
+                    
                     cgto = libcint.CGTOBasis(
                         angmom=int(self.ihelp.angular[s]),  # int!
-                        alphas=alphas[idx],
-                        coeffs=coeffs[idx],
+                        alphas=alphas[idx],# + alphas_peratom[s], # added by Yufan
+                        coeffs=coeffs[idx],# + coeffs_peratom[s], # added by Yufan
                         normalized=True,
                     )
                     bases.append(cgto)
@@ -544,6 +591,7 @@ class Basis(TensorLike):
                     pos=positions[i, :],
                 )
                 atombasis.append(atomcgtobasis)
+
 
             return atombasis
 

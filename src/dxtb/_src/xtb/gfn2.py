@@ -218,6 +218,12 @@ class GFN2Hamiltonian(BaseHamiltonian):
             torch.zeros_like(denominator),  # 或 torch.ones_like(denominator) 取决于你的物理需求
             numerator / denominator
         )
+
+        # # 避免分母为0导致反向传播nan
+        # denominator_safe = denominator.clone()
+        # denominator_safe[denominator_safe == 0] = 1.0  # 0的地方设为1，防止除0
+        # safe_fraction = numerator / denominator_safe
+        # safe_fraction = safe_fraction * (denominator != 0)  # 0的地方强制为0
         zmat = storch.pow(2 * safe_fraction, wexp)
 
         shell_to_ushell = self.ihelp.shells_to_ushell   # the map
