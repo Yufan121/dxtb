@@ -175,9 +175,38 @@ class GFN2Hamiltonian(BaseHamiltonian):
 
         return ksh
 
+    def _get_zi_zj(self, par: ParamModule) -> Tensor:
+        """
+        Yufan:
+        Get the original zi and zj for the Hamiltonian.
+        """
+        # extract some vars for convenience
+        ushells = self.ihelp.unique_angular
+
+        angular2label = {
+            0: "s",
+            1: "p",
+            2: "d",
+            3: "f",
+            4: "g",
+        }
+
+        # ----------------------
+        # Eq.37: Y(z^A_l, z^B_m)
+        # ----------------------
+        z = par.get_elem_param(self.unique, "slater", pad_val=PAD)
+        z = self.ihelp.spread_ushell_to_shell(z)
+        zi = z.unsqueeze(-1)
+        zj = z.unsqueeze(-2)
+        
+
+        return zi, zj
+
+
     def _get_hscale_peratomshell(self, par: ParamModule) -> Tensor:
         """
         用每壳层参数生成壳层间缩放因子矩阵 ksh。
+        Delta + per_shell_param, no longer use get_hscale.
 
         Parameters
         ----------
@@ -209,7 +238,14 @@ class GFN2Hamiltonian(BaseHamiltonian):
         z = z.view(-1) # 1, n_shell 
         zi = z.unsqueeze(-1)
         zj = z.unsqueeze(-2)
-        numerator = torch.sqrt(zi * zj)
+        
+        # Yufan: add delta to the zi and zj
+        zi_ori_shell, zj_ori_shell = self._get_zi_zj(par) # per ushell
+        zi = zi_ori_shell + zi
+        zj = zj_ori_shell + zj
+        
+        
+        numerator = torch.sqrt((zi) * (zj)) # this is where the problem is
         denominator = zi + zj
 
         # 对分母为0的位置，直接令结果为0（或你需要的其它值）

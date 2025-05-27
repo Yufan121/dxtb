@@ -365,8 +365,8 @@ class BaseHamiltonian(HamiltonianABC, TensorLike):
         hscale = self.ihelp.spread_ushell_to_shell(self.hscale, dim=(-2, -1))
         valence = self.ihelp.spread_ushell_to_shell(self.valence)
 
-        assert self.hscale_peratom.shape == hscale.shape, f"self.hscale_peratom.shape: {self.hscale_peratom.shape}, hscale.shape: {hscale.shape}"
-        hscale = hscale + self.hscale_peratom
+        # assert self.hscale_peratom.shape == hscale.shape, f"self.hscale_peratom.shape: {self.hscale_peratom.shape}, hscale.shape: {hscale.shape}"
+        hscale = self.hscale_peratom # no longer use hscale
 
         var_k = torch.where(
             valence.unsqueeze(-1) * valence.unsqueeze(-2),

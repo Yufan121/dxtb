@@ -524,31 +524,31 @@ class Basis(TensorLike):
                 s += 1
             
                 
-        # tracking only required for orthogonalization
-        alphas_peratom = []
-        coeffs_peratom = []
-        s_peratom = 0   # unique shell index
-        # Yufan added, per-atom alphas and coeffs
-        for aid in range(self.numbers.size(0)):
-            eid = self.ihelp.atom_to_unique[aid]
-            shells = self.ihelp.ushells_per_unique[eid]
-            for l in range(shells):
-                sid = self.ihelp.shells_to_ushell[s_peratom]
-                alpha, coeff = slater_to_gauss(
-                    self.ngauss[sid],
-                    self.pqn[sid],
-                    self.ihelp.unique_angular[sid],
-                    self.slater_peratom[s_peratom],
-                )
-                # 只在本原子内部正交化
-                if self.valence[sid].item() is False and l > 0:
-                    alpha, coeff = orthogonalize(
-                        (alphas_peratom[-1], alpha),
-                        (coeffs_peratom[-1], coeff),
-                    )
-                alphas_peratom.append(alpha)
-                coeffs_peratom.append(coeff)
-                s_peratom += 1
+        # # tracking only required for orthogonalization
+        # alphas_peratom = []
+        # coeffs_peratom = []
+        # s_peratom = 0   # unique shell index
+        # # Yufan added, per-atom alphas and coeffs
+        # for aid in range(self.numbers.size(0)):
+        #     eid = self.ihelp.atom_to_unique[aid]
+        #     shells = self.ihelp.ushells_per_unique[eid]
+        #     for l in range(shells):
+        #         sid = self.ihelp.shells_to_ushell[s_peratom]
+        #         alpha, coeff = slater_to_gauss(
+        #             self.ngauss[sid],
+        #             self.pqn[sid],
+        #             self.ihelp.unique_angular[sid],
+        #             self.slater_peratom[s_peratom],
+        #         )
+        #         # 只在本原子内部正交化
+        #         if self.valence[sid].item() is False and l > 0:
+        #             alpha, coeff = orthogonalize(
+        #                 (alphas_peratom[-1], alpha),
+        #                 (coeffs_peratom[-1], coeff),
+        #             )
+        #         alphas_peratom.append(alpha)
+        #         coeffs_peratom.append(coeff)
+        #         s_peratom += 1
 
 
 
@@ -570,9 +570,9 @@ class Basis(TensorLike):
                 for _ in range(self.ihelp.shells_per_atom[i]):
                     idx = self.ihelp.shells_to_ushell[s]    # ushell index
 
-                    # check if the shape is the same
-                    assert alphas[idx].shape == alphas_peratom[s].shape, f"alphas[idx].shape: {alphas[idx].shape}, alphas_peratom[s].shape: {alphas_peratom[s].shape}"
-                    assert coeffs[idx].shape == coeffs_peratom[s].shape, f"coeffs[idx].shape: {coeffs[idx].shape}, coeffs_peratom[s].shape: {coeffs_peratom[s].shape}"
+                    # # check if the shape is the same
+                    # assert alphas[idx].shape == alphas_peratom[s].shape, f"alphas[idx].shape: {alphas[idx].shape}, alphas_peratom[s].shape: {alphas_peratom[s].shape}"
+                    # assert coeffs[idx].shape == coeffs_peratom[s].shape, f"coeffs[idx].shape: {coeffs[idx].shape}, coeffs_peratom[s].shape: {coeffs_peratom[s].shape}"
                     
                     cgto = libcint.CGTOBasis(
                         angmom=int(self.ihelp.angular[s]),  # int!

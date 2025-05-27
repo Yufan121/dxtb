@@ -68,9 +68,9 @@ time_start = time.time()
 dxtb.timer.reset()
 
 
-glob_param_enum = ['ks', 'kp', 'kd', 'ksd', 'kpd', 'kdiff', 'enscale', 'ipeashift', 'gam3s', 'gam3p', 'gam3d1', 'gam3d2', 'aesshift', 'aesexp', 'aesrmax', 'alphaj', 'a1', 'a2', 's6','s8', 's9', 'aesdmp3', 'aesdmp5', 'kexp', 'kexplight']
-ele_param_enum = ['lev', 'exp', 'EN','GAM', 'GAM3', 'KCNS', 'KCNP', 'KCND', 'DPOL', 'QPOL', 'REPA', 'REPB', 'POLYS', 'POLYP', 'POLYD', 'LPARP', 'LPARD', 'mpvcn', 'mprad']
-len_ele_param_enum = [3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+glob_param_enum = ['wexp', 'kpol', 'enscale', 'ss', 'pp', 'dd', 'sd', 'pd', 's6', 's8', 'a1', 'a2', 's9', 's10', 'kexp', 'klight', 'gexp', 's', 'p', 'd', 'dmp3', 'dmp5', 'shift', 'rmax']
+ele_param_enum = ['levels', 'slater', 'ngauss', 'refocc', 'shpoly', 'kcn', 'gam', 'lgam', 'gam3', 'zeff', 'arep', 'xbond', 'en', 'dkernel', 'qkernel', 'mprad', 'mpvcn']
+len_ele_param_enum = [3, 3, 3, 3, 3, 3, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 pair_param_enum = ['c6matrix']
 
 
@@ -91,6 +91,7 @@ atom_param_dict = { # arranged by (param, atom). pass to param iniatialization.
     "a1": 0.0,
     "a2": 0.0,
     "s9": 0.0,
+    "s10": 0.0,
     "kexp": 0.0,
     "klight": 0.0,
     "gexp": 0.0,
@@ -106,7 +107,7 @@ atom_param_dict = { # arranged by (param, atom). pass to param iniatialization.
 
     # atoms' parameters
     "levels": [[0,0,0], [0,0,0]],   
-    "slater": [[0,0,0], [0,0,0]],   
+    "slater": [[-0.1,-0.2,-0.3], [0,0,0]],   
     "ngauss": [[0,0,0], [0,0,0]],   # int should be ignored
     "refocc": [[0,0,0], [0,0,0]],   # int might be ignored
     "shpoly": [[0,0,0], [0,0,0]],   
@@ -116,7 +117,6 @@ atom_param_dict = { # arranged by (param, atom). pass to param iniatialization.
     "gam3": [0.5, 0.5],     # Done
     "zeff": [10, 0],    # dF/dp problem
     "arep": [10, 0],    # dF/dp problem
-    "xbond": [0, 0],
     "en": [0, 0],
     # multipole parameters
     "dkernel": [0, 0],         # Done
