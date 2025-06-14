@@ -312,7 +312,19 @@ class AES2(Interaction):
         if ihelp is None:
             raise ValueError("IndexHelper is required for AES2 cache creation.")
 
-        cachvars = (numbers.detach().clone(), positions.detach().clone())
+        cachvars = (
+            numbers.detach().clone(), 
+            positions.detach().clone(),
+            # Include per-atom parameters in cache validation
+            self.dkernel.detach().clone(),
+            self.qkernel.detach().clone(),
+            self.rad.detach().clone(),
+            self.vcn.detach().clone(),
+            self.dkernel_peratom.detach().clone(),
+            self.qkernel_peratom.detach().clone(),
+            self.rad_peratom.detach().clone(),
+            self.vcn_peratom.detach().clone(),
+        )
 
         if self.cache_is_latest(cachvars) is True:
             if not isinstance(self.cache, AES2Cache):

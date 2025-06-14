@@ -219,8 +219,8 @@ class BaseRepulsion(Classical):
         zeff = ihelp.spread_uspecies_to_atom(self.zeff)
         
         
-        print(f'arep_peratom from cache: {self.arep_peratom}')
-        print(f'zeff_peratom from cache: {self.zeff_peratom}')
+        # print(f'arep_peratom from cache: {self.arep_peratom}')
+        # print(f'zeff_peratom from cache: {self.zeff_peratom}')
         assert self.arep_peratom.shape == arep.shape, f"{self.arep_peratom.shape} != {arep.shape}"
         assert self.zeff_peratom.shape == zeff.shape, f"{self.zeff_peratom.shape} != {zeff.shape}"
         

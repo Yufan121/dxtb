@@ -100,6 +100,10 @@ class BaseTSCF(BaseSCF):
         else:
             raise ValueError(f"Unknown mixer '{self.config.mixer}'.")
 
+        # Ensure mixer state is reset for each new SCF instance
+        # This prevents state contamination between multiple calculations
+        self.mixer.reset()
+
         # For batched GFN2-xTB calculations, the culling does not work properly
         # because of shape issues brought about by the quadrupole moments.
         if self.config.method == labels.GFN2_XTB and batched > 0:

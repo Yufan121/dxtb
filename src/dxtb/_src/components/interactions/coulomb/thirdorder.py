@@ -240,8 +240,8 @@ class ES3(Interaction):
             hd = ihelp.spread_uspecies_to_atom(self.hubbard_derivs)
         else:
             scale = ihelp.spread_ushell_to_shell(           # spread the element-wise shell scale to the shell scale
-                self.shell_scale[ihelp.unique_angular] +
-                self.shell_scale_peratom[ihelp.unique_angular]  # Yufan added
+                self.shell_scale[ihelp.unique_angular] #+
+                # self.shell_scale_peratom[ihelp.unique_angular]  # Yufan added
             )
             
                         

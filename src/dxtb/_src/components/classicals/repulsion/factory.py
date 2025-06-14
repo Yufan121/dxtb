@@ -101,8 +101,8 @@ def new_repulsion(
     zeff = par.get_elem_param(unique, "zeff", pad_val=0)
     arep_peratom = par.get_atom_param(unique, "arep")
     zeff_peratom = par.get_atom_param(unique, "zeff")
-    print(f'arep_peratom: {arep_peratom}')
-    print(f'zeff_peratom: {zeff_peratom}')
+    # print(f'arep_peratom: {arep_peratom}')
+    # print(f'zeff_peratom: {zeff_peratom}')
 
     if cutoff is None:
         cutoff = xtb.DEFAULT_REPULSION_CUTOFF

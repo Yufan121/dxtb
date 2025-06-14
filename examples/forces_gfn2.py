@@ -108,11 +108,11 @@ atom_param_dict = { # arranged by (param, atom). pass to param iniatialization.
     # atoms' parameters
     "levels": [[0,0,0], [0,0,0]],   
     "slater": [[-0.1,-0.2,-0.3], [0,0,0]],   
-    "ngauss": [[0,0,0], [0,0,0]],   # int should be ignored
-    "refocc": [[0,0,0], [0,0,0]],   # int might be ignored
+    # "ngauss": [[0,0,0], [0,0,0]],   # int should be ignored
+    # "refocc": [[0,0,0], [0,0,0]],   # int might be ignored
     "shpoly": [[0,0,0], [0,0,0]],   
     "kcn": [[0,0,0], [0,0,0]],
-    "gam": [0, 0],   # Done
+    "gam": [0.1, 0.2],   # Done
     "lgam": [[0.0,0.1,0.2], [0.3,0.4,0.5]],  # Done
     "gam3": [0.5, 0.5],     # Done
     "zeff": [10, 0],    # dF/dp problem

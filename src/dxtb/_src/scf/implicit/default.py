@@ -71,6 +71,8 @@ class SelfConsistentFieldImplicit(BaseXSCF):
         # (see https://github.com/grimme-lab/dxtb/issues/124)
         if self.config.scp_mode == labels.SCP_MODE_CHARGE:
             mixer = Simple({**self.fwd_options, "damp": 1e-5})
+            # Reset mixer state to ensure clean state for each calculation
+            mixer.reset()
             q_new = self._fcn(q_converged)
             q_converged = mixer.iter(q_new, q_converged)
 

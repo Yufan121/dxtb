@@ -91,6 +91,8 @@ def scf_pure(
     # (see https://github.com/grimme-lab/xtbML/issues/124)
     if cfg.scp_mode == labels.SCP_MODE_CHARGE:
         mixer = Simple({**cfg.fwd_options, "damp": 1e-4})
+        # Reset mixer state to ensure clean state for each calculation
+        mixer.reset()
         q_new = fcn(q_converged, data, cfg, interactions)
         q_converged = mixer.iter(q_new, q_converged)
 

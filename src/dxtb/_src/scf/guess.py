@@ -76,6 +76,8 @@ def get_guess(
             name = labels.GUESS_SAD
         else:
             raise ValueError(f"Unknown guess method '{name}'.")
+    # yufan
+    name = labels.GUESS_SAD
 
     if name == labels.GUESS_EEQ:
         charges = get_eeq_guess(numbers, positions, chrg)

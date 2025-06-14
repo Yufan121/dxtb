@@ -524,33 +524,35 @@ class Basis(TensorLike):
                 s += 1
             
                 
-        # # tracking only required for orthogonalization
-        # alphas_peratom = []
-        # coeffs_peratom = []
-        # s_peratom = 0   # unique shell index
-        # # Yufan added, per-atom alphas and coeffs
-        # for aid in range(self.numbers.size(0)):
-        #     eid = self.ihelp.atom_to_unique[aid]
-        #     shells = self.ihelp.ushells_per_unique[eid]
-        #     for l in range(shells):
-        #         sid = self.ihelp.shells_to_ushell[s_peratom]
-        #         alpha, coeff = slater_to_gauss(
-        #             self.ngauss[sid],
-        #             self.pqn[sid],
-        #             self.ihelp.unique_angular[sid],
-        #             self.slater_peratom[s_peratom],
-        #         )
-        #         # 只在本原子内部正交化
-        #         if self.valence[sid].item() is False and l > 0:
-        #             alpha, coeff = orthogonalize(
-        #                 (alphas_peratom[-1], alpha),
-        #                 (coeffs_peratom[-1], coeff),
-        #             )
-        #         alphas_peratom.append(alpha)
-        #         coeffs_peratom.append(coeff)
-        #         s_peratom += 1
+        # # # tracking only required for orthogonalization
+        # # alphas_peratom = []
+        # # coeffs_peratom = []
+        # # s_peratom = 0   # unique shell index
+        # # # Yufan added, per-atom alphas and coeffs
+        # # for aid in range(self.numbers.size(0)):
+        # #     eid = self.ihelp.atom_to_unique[aid]
+        # #     shells = self.ihelp.ushells_per_unique[eid]
+        # #     for l in range(shells):
+        # #         sid = self.ihelp.shells_to_ushell[s_peratom]
+        # #         alpha, coeff = slater_to_gauss(
+        # #             self.ngauss[sid],
+        # #             self.pqn[sid],
+        # #             self.ihelp.unique_angular[sid],
+        # #             self.slater_peratom[s_peratom],
+        # #         )
+        # #         # 只在本原子内部正交化
+        # #         if self.valence[sid].item() is False and l > 0:
+        # #             alpha, coeff = orthogonalize(
+        # #                 (alphas_peratom[-1], alpha),
+        # #                 (coeffs_peratom[-1], coeff),
+        # #             )
+        # #         alphas_peratom.append(alpha)
+        # #         coeffs_peratom.append(coeff)
+        # #         s_peratom += 1
 
 
+        # call _create_peratom_cgtos
+        # alphas, coeffs = self._create_peratom_cgtos()
 
         ##########
         # SINGLE #
@@ -667,6 +669,73 @@ class Basis(TensorLike):
             b.append(atombasis)
 
         return b
+
+    def _create_peratom_cgtos(self) -> tuple[list[Tensor], list[Tensor]]:
+        """
+        Create contracted Gaussian type orbitals for each atom using 
+        per-element + per-atom slater parameters.
+
+        Returns
+        -------
+        tuple[list[Tensor], list[Tensor]]
+            List of primitive Gaussian exponents and contraction coefficients
+            for each shell of each atom, using combined per-element and per-atom
+            slater parameters.
+        """
+        alphas_combined = []
+        coeffs_combined = []
+        
+        s = 0  # shell counter across all atoms
+        
+        # Loop over each atom
+        for aid in range(self.numbers.size(0)):
+            atom_alphas = []
+            atom_coeffs = []
+            
+            # Get number of shells for this atom
+            n_shells = self.ihelp.shells_per_atom[aid]
+            
+            # Loop over each shell of this atom
+            for shell_idx in range(n_shells):
+                # Get the unique shell index
+                ushell_idx = self.ihelp.shells_to_ushell[s]
+                
+                # Get per-element slater parameter
+                slater_per_element = self.slater[ushell_idx]
+                
+                # Get per-atom slater parameter  
+                slater_per_atom = self.slater_peratom[s]
+                
+                # Combined slater parameter (per-element + per-atom)
+                slater_combined = slater_per_element + slater_per_atom
+                
+                # Calculate alpha and coeff using combined slater
+                alpha, coeff = slater_to_gauss(
+                    self.ngauss[ushell_idx],
+                    self.pqn[ushell_idx], 
+                    self.ihelp.unique_angular[ushell_idx],
+                    slater_combined,
+                )
+                
+                # Handle orthogonalization for non-valence shells
+                # (only orthogonalize within the same atom)
+                if (self.valence[ushell_idx].item() is False and 
+                    shell_idx > 0 and len(atom_alphas) > 0):
+                    alpha, coeff = orthogonalize(
+                        (atom_alphas[-1], alpha),
+                        (atom_coeffs[-1], coeff),
+                    )
+                
+                atom_alphas.append(alpha)
+                atom_coeffs.append(coeff)
+                
+                s += 1
+            
+            # Add this atom's alphas and coeffs to the combined lists
+            alphas_combined.extend(atom_alphas)
+            coeffs_combined.extend(atom_coeffs)
+        
+        return alphas_combined, coeffs_combined
 
 
 def format_contraction(shells: list[str], ngauss: Tensor) -> str:
