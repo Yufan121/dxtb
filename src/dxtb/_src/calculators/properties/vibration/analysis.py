@@ -129,14 +129,16 @@ class VibResult(BaseResult):
 def _get_translational_modes(mass: Tensor):
     """Translational modes"""
     massp = storch.sqrt(mass)
-    Tx = einsum("...m,x->...mx", massp, torch.tensor([1, 0, 0]))
-    Ty = einsum("...m,y->...my", massp, torch.tensor([0, 1, 0]))
-    Tz = einsum("...m,z->...mz", massp, torch.tensor([0, 0, 1]))
+    Tx = einsum("...m,x->...mx", massp, torch.tensor([1, 0, 0], device=mass.device, dtype=mass.dtype))
+    Ty = einsum("...m,y->...my", massp, torch.tensor([0, 1, 0], device=mass.device, dtype=mass.dtype))
+    Tz = einsum("...m,z->...mz", massp, torch.tensor([0, 0, 1], device=mass.device, dtype=mass.dtype))
     return Tx.ravel(), Ty.ravel(), Tz.ravel()
 
 
 def _get_rotational_modes(mass: Tensor, positions: Tensor):
     mpos = positions_rel_com(mass, positions)
+    #print device of mass and mpos
+    print(f"mass device: {mass.device}, mpos device: {mpos.device}")
     im = inertia_moment(mass, mpos, pos_already_com=True)
 
     # Eigendecomposition yields the principal moments of inertia (w)
@@ -232,7 +234,7 @@ def vib_analysis(
     # TODO: Test batch
     TRspace = []
     if project_translational is True and numbers.shape[-1] > 1:
-        TRspace.extend(_get_translational_modes(mass))
+        TRspace.extend(_get_translational_modes(mass))  # Yufan: fit this to gpu device
 
     if project_rotational is True and numbers.shape[-1] > 1:
         if (is_linear(numbers, positions) == True).all():
@@ -254,7 +256,8 @@ def vib_analysis(
         # consideration, focusing the analysis on the true vibrational modes of
         # a molecular system.
         qqT = q @ q.mT  # einsum("...ij,...kj->...ik", q, q)
-        P = torch.eye(*[3 * numbers.shape[-1]]) - qqT
+        # print(f"qqT device: {qqT.device}, torch.eye device: {torch.eye(3 * numbers.shape[-1], device=qqT.device).device}")
+        P = torch.eye(*[3 * numbers.shape[-1]], device=qqT.device) - qqT # Yufan: fit this to gpu device
         w, v = storch.eighb(P)
         bvec = v[..., :, w > LINDEP_THRESHOLD]
 

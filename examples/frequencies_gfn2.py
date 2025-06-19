@@ -28,6 +28,7 @@ from pathlib import Path
 import torch
 import time
 from tad_mctc.io import read
+from tad_mctc.units import AU2RCM
 
 import dxtb
 from dxtb.typing import DD
@@ -37,7 +38,9 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 dd: DD = {"device": device, "dtype": torch.double}
 
 # Load molecule data
-path = Path(__file__).resolve().parent / "molecules" / "lih.xyz"
+# path = Path(__file__).resolve().parent / "molecules" / "lih.xyz"
+path = Path(__file__).resolve().parent / "molecules" / "nicotine.xyz"
+# path = Path(__file__).resolve().parent / "molecules" / "capsaicin.xyz"
 numbers, positions = read.read(path, ftype="xyz", **dd)
 print(f'numbers: {numbers}, positions: {positions}')
 
@@ -87,14 +90,14 @@ atom_param_dict = { # arranged by (param, atom). pass to param initialization.
     
     # atoms' parameters
     "levels": [[0,0,0], [0,0,0]],   
-    "slater": [[-0.1,-0.2,-0.3], [0,0,0]],   
+    "slater": [[0,0,0], [0,0,0]],   
     "shpoly": [[0,0,0], [0,0,0]],   
     "kcn": [[0,0,0], [0,0,0]],
-    "gam": [0.1, 0.2],
-    "lgam": [[0.0,0.1,0.2], [0.3,0.4,0.5]],
-    "gam3": [0.5, 0.5],
-    "zeff": [10, 0],
-    "arep": [10, 0],
+    "gam": [0, 0],
+    "lgam": [[0,0,0], [0,0,0]],
+    "gam3": [0, 0],
+    "zeff": [0, 0],
+    "arep": [0, 0],
     "en": [0, 0],
     # multipole parameters
     "dkernel": [0, 0],
@@ -106,10 +109,18 @@ atom_param_dict = { # arranged by (param, atom). pass to param initialization.
     "c6matrix": [[0,0], [0,0]],
 }
 
+# copy each value in atom_param_dict to match numbers
+natom = len(numbers)
+for key, value in atom_param_dict.items():
+    if isinstance(value, list):
+        atom_param_dict[key] = [value[0]] * natom
+    else:
+        atom_param_dict[key] = value
+
 # make all values tensors and requires_grad = True
 for key, value in atom_param_dict.items():
     if isinstance(value, list) or isinstance(value, float):
-        atom_param_dict[key] = torch.tensor(value, dtype=torch.double, requires_grad=True)
+        atom_param_dict[key] = torch.tensor(value, dtype=torch.double, requires_grad=True, device=device)
     else:
         raise ValueError(f"Invalid param value type for {key}: {type(value)}")
 
@@ -125,6 +136,8 @@ print("Calculating frequencies using analytical differentiation (manual jacobian
 time_start = time.time()
 dxtb.timer.reset()
 
+numbers = torch.tensor(numbers, dtype=torch.int32, device=device)
+
 # Initialize calculator with GFN2-xTB
 calc = dxtb.Calculator(
     numbers,
@@ -134,51 +147,18 @@ calc = dxtb.Calculator(
 )
 
 # Calculate frequencies using analytical method
-pos = positions.clone().requires_grad_(True)
-freqs1, modes1 = calc.vibration(pos, chrg=charge, use_functorch=False)
+pos = positions.clone().requires_grad_(True).to(device)
+freqs1, modes1 = calc.vibration(pos, chrg=charge, use_functorch=True)
 
-print(f"Analytical frequencies (manual jacobian) (cm⁻¹): {freqs1}")
-
-dxtb.timer.print()
-time_end = time.time()
-print(f"Time taken: {time_end - time_start:.2f} seconds")
-
-######################################################################
-
-print("\n\n\nCalculating frequencies using analytical differentiation (functorch).\n")
-
-time_start = time.time()
-dxtb.timer.reset()
-
-# Reset calculator and calculate frequencies using functorch
-calc.reset()
-pos = positions.clone().requires_grad_(True)
-freqs2, modes2 = calc.vibration(pos, chrg=charge, use_functorch=True)
-
-print(f"Analytical frequencies (functorch) (cm⁻¹): {freqs2}")
+# Convert from atomic units to cm-1
+freqs1_cm = freqs1 * AU2RCM
+print(f"Analytical frequencies (manual jacobian) (atomic units): {freqs1}")
+print(f"Analytical frequencies (manual jacobian) (cm⁻¹): {freqs1_cm}")
 
 dxtb.timer.print()
 time_end = time.time()
 print(f"Time taken: {time_end - time_start:.2f} seconds")
 
-######################################################################
-
-# Compare results
-print("\n\nComparing results:")
-print(f"Manual jacobian:  {freqs1}")
-print(f"Functorch:        {freqs2}")
-
-# Check if analytical methods agree
-equal_analytical = torch.allclose(freqs1, freqs2, atol=1e-6, rtol=1e-6)
-print(f"\nAnalytical methods agree: {equal_analytical}")
-
-# Print frequency statistics
-print("\nFrequency statistics:")
-print(f"Number of frequencies: {len(freqs1)}")
-print(f"Lowest frequency: {freqs1.min().item():.2f} cm⁻¹")
-print(f"Highest frequency: {freqs1.max().item():.2f} cm⁻¹")
-
-######################################################################
 
 print("\n\n\n")
 print(f"Calculating dFreq/dp using torch.autograd.grad")
