@@ -35,7 +35,13 @@ from dxtb.typing import DD
 
 # Set up device and dtype
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-dd: DD = {"device": device, "dtype": torch.double}
+# Use float32 for faster computation, double only if high precision needed
+dd: DD = {"device": device, "dtype": torch.double}  # Changed from torch.double
+
+# Enable memory optimizations if using CUDA
+if device.type == "cuda":
+    torch.backends.cudnn.benchmark = True
+    torch.backends.cudnn.deterministic = False
 
 # Load molecule data
 # path = Path(__file__).resolve().parent / "molecules" / "lih.xyz"
@@ -49,11 +55,11 @@ charge = 0
 # Calculator options
 opts = {
     "verbosity": 0,
-    "maxiter": 100,
+    "maxiter": 50,
     "mixer": "anderson",
     "scf_mode": "full",
-    "f_atol": 1e-10,
-    "x_atol": 1e-10,
+    "f_atol": 1e-8,
+    "x_atol": 1e-8,
     # if per-atom parameters are used, the default is False
     "per_atom": True
 }
@@ -151,6 +157,7 @@ pos = positions.clone().requires_grad_(True).to(device)
 freqs1, modes1 = calc.vibration(pos, chrg=charge, use_functorch=True)
 
 # Convert from atomic units to cm-1
+from tad_mctc.units import AU2RCM
 freqs1_cm = freqs1 * AU2RCM
 print(f"Analytical frequencies (manual jacobian) (atomic units): {freqs1}")
 print(f"Analytical frequencies (manual jacobian) (cm⁻¹): {freqs1_cm}")

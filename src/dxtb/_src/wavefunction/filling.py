@@ -100,7 +100,7 @@ def get_alpha_beta_occupation(
     uhf = torch.atleast_1d(uhf)
     assert isinstance(uhf, Tensor)
 
-    nuhf = torch.where(
+    nuhf = torch.where( # 
         torch.remainder(uhf, 2) == torch.remainder(nel.round(), 2),
         uhf,
         torch.remainder(nel.round(), 2),

@@ -138,7 +138,7 @@ def _get_translational_modes(mass: Tensor):
 def _get_rotational_modes(mass: Tensor, positions: Tensor):
     mpos = positions_rel_com(mass, positions)
     #print device of mass and mpos
-    print(f"mass device: {mass.device}, mpos device: {mpos.device}")
+    # print(f"mass device: {mass.device}, mpos device: {mpos.device}")
     im = inertia_moment(mass, mpos, pos_already_com=True)
 
     # Eigendecomposition yields the principal moments of inertia (w)

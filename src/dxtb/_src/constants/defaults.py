@@ -184,9 +184,14 @@ MIX_GUESS = True
 
 SCF_MODE = labels.SCF_MODE_IMPLICIT_NON_PURE
 """
-Whether to use full gradient tracking in SCF, make use of the implicit
-function theorem as provided by ``xitorch.optimize.equilibrium``, or use the
-experimental single-shot procedure.
+SCF gradient tracking mode:
+- SCF_MODE_IMPLICIT_NON_PURE (default): Implicit function theorem with 
+  reconnection step. Balances efficiency and accuracy by detaching initial 
+  guess to avoid memory leaks, then reconnecting H0 energy to computation 
+  graph via single SCF step with strong damping (1e-4).
+- SCF_MODE_FULL: Full gradient tracking through all iterations (memory intensive)
+- SCF_MODE_IMPLICIT: Pure implicit function theorem (may have connection issues)
+- SCF_MODE_EXPERIMENTAL: Single-shot gradient (approximate)
 """
 
 SCF_MODE_CHOICES = [

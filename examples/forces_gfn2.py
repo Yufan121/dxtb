@@ -154,7 +154,7 @@ calc = dxtb.Calculator(
 
 # Calculate energy and forces using autograd
 pos = positions.clone().requires_grad_(True)
-energy = calc.energy(pos, chrg=charge)
+energy = calc.energy(pos, chrg=charge, spin=1)
 
 # Calculate forces as negative gradient of energy
 (g,) = torch.autograd.grad(energy, pos, grad_outputs=torch.ones_like(energy), retain_graph=True, create_graph=True)
