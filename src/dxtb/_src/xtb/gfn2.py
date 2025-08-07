@@ -27,12 +27,16 @@ from functools import partial
 
 import torch
 from tad_mctc import storch
+from tad_mctc.batch import real_pairs
+from tad_mctc.data import radii
+from tad_mctc.ncoord import defaults
+from tad_mctc.ncoord.count import exp_count
 
 from dxtb import IndexHelper
 from dxtb._src.components.interactions import Potential
 from dxtb._src.param.base import Param
 from dxtb._src.param.module import ParameterModule, ParamModule
-from dxtb._src.typing import Any, Tensor
+from dxtb._src.typing import Any, CountingFunction, DD, Tensor
 
 from .base import PAD, BaseHamiltonian
 
@@ -60,9 +64,111 @@ class GFN2Hamiltonian(BaseHamiltonian):
             self.cn = kwargs.pop("cn")
         else:
             # pylint: disable=import-outside-toplevel
-            from tad_mctc.ncoord import cn_d3, gfn2_count
+            from tad_mctc.ncoord import gfn2_count
 
-            self.cn = partial(cn_d3, counting_function=gfn2_count)
+            # use par to get atom parameters
+            # TODO
+            rcov_peratom = par.get_atom_param(self.unique, "rcov")
+            
+            
+            self.cn = partial(self.cn_d3_peratom, counting_function=gfn2_count, rcov_peratom=rcov_peratom)
+
+
+    def cn_d3_peratom(
+        self,
+        numbers: Tensor,
+        positions: Tensor,
+        *,
+        counting_function: CountingFunction = exp_count,
+        rcov: Tensor | None = None,
+        rcov_peratom: Tensor | None = None,
+        cutoff: Tensor | None = None,
+        **kwargs: Any,
+    ) -> Tensor:
+        """
+        Compute the D3 fractional coordination (exponential counting function).
+
+        Parameters
+        ----------
+        numbers : Tensor
+            Atomic numbers for all atoms in the system of shape ``(..., nat)``.
+        positions : Tensor
+            Cartesian coordinates of all atoms (shape: ``(..., nat, 3)``).
+        counting_function : CountingFunction, optional
+            Calculate weight for pairs. Defaults to
+            :func:`tad_mctc.ncoord.count.exp_count`.
+        rcov : Tensor | None, optional
+            Covalent radii for each species. Defaults to ``None``.
+        cutoff : Tensor | None, optional
+            Real-space cutoff. Defaults to ``None``.
+        kwargs : dict[str, Any] 
+            Pass-through arguments for counting function. For example, ``kcn``,
+            the steepness of the counting function, which defaults to
+            :data:`tad_mctc.ncoord.defaults.KCN_D3`.
+
+        Returns
+        -------
+        Tensor
+            Coordination numbers for all atoms (shape: ``(..., nat)``).
+
+        Raises
+        ------
+        ValueError
+            If shape mismatch between ``numbers``, ``positions`` and
+            ``rcov`` is detected.
+
+        Computing Steps
+        --------------
+        1. Set device/dtype context and default cutoff if not provided.
+        2. Obtain covalent radii (rcov) for each atom, using per-atom values if available.
+        3. Check input shapes for consistency.
+        4. Compute pairwise distance matrix between atoms, masking out diagonal.
+        5. For each atom pair, sum their covalent radii to get rc.
+        6. Apply the counting function to each valid pair (within cutoff) to get pairwise weights.
+        7. Sum the weights for each atom to obtain its coordination number.
+        """
+        
+        
+        dd: DD = {"device": positions.device, "dtype": positions.dtype}
+
+        if cutoff is None:
+            cutoff = torch.tensor(defaults.CUTOFF_D3, **dd)
+
+        if rcov is None:
+            rcov = radii.COV_D3.to(**dd)[numbers] # already per atom, add per atom rcov below
+        else:
+            rcov = rcov.to(**dd)
+
+        # add rcov_peratom
+        if rcov_peratom is not None:
+            assert rcov_peratom.shape == rcov.shape, f"rcov_peratom.shape: {rcov_peratom.shape}, rcov.shape: {rcov.shape}"
+            rcov = rcov_peratom + rcov
+
+        if numbers.shape != rcov.shape:
+            raise ValueError(
+                f"Shape of covalent radii {rcov.shape} is not consistent with "
+                f"({numbers.shape})."
+            )
+        if numbers.shape != positions.shape[:-1]:
+            raise ValueError(
+                f"Shape of positions ({positions.shape[:-1]}) is not consistent "
+                f"with atomic numbers ({numbers.shape})."
+            )
+
+        eps = torch.tensor(torch.finfo(positions.dtype).eps, **dd)
+
+        mask = real_pairs(numbers, mask_diagonal=True)
+        distances = torch.where(mask, storch.cdist(positions, positions, p=2), eps)
+
+        rc = rcov.unsqueeze(-2) + rcov.unsqueeze(-1)
+        cf = torch.where(
+            mask * (distances <= cutoff),
+            counting_function(distances, rc, **kwargs),
+            torch.tensor(0.0, **dd),
+        )
+
+        return torch.sum(cf, dim=-1)
+
 
     def _get_hscale(self, par: ParamModule) -> Tensor:
         """

@@ -718,8 +718,18 @@ def new_aes2(
     
     dkernel_peratom = par.get_atom_param(unique, "dkernel")
     qkernel_peratom = par.get_atom_param(unique, "qkernel")
-    rad_peratom = par.get_atom_param(unique, "mprad")
-    vcn_peratom = par.get_atom_param(unique, "mpvcn")
+    
+    #### New modification
+    try:
+        rad_peratom = par.get_atom_param(unique, "mprad")
+    except Exception:
+        rad_peratom = torch.zeros_like(dkernel_peratom)
+    try:
+        vcn_peratom = par.get_atom_param(unique, "mpvcn")
+    except Exception:
+        vcn_peratom = torch.zeros_like(qkernel_peratom)
+
+
 
     return AES2(
         dmp3=par.get("multipole.damped.dmp3"),

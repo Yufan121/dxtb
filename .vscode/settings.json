@@ -20,4 +20,15 @@
     "reportPrivateImportUsage": "information"
   },
   "cursorpyright.analysis.typeCheckingMode": "basic"
+
+
+  "workbench.colorCustomizations": {
+      "editor.selectionBackground": "#5a823a",
+      "activityBar.background": "#411835",
+      "titleBar.activeBackground": "#2d1491",
+      "titleBar.activeForeground": "#FDFAFC"
+  },
+  "git.ignoreLimitWarning": true,
+  "python.analysis.typeCheckingMode": "basic"
 }
+

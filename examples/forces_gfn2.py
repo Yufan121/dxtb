@@ -123,6 +123,11 @@ atom_param_dict = { # arranged by (param, atom). pass to param iniatialization.
     "qkernel": [0, 0],         # Done
     "mprad": [0, 0],          # Done
     "mpvcn": [0, 0],          # Done
+    "3rd_scale": [[1, 2, 3], [4, 5, 6]],
+    "qsh": [[1, 2, 3], [4, 5, 6]],
+    "predicted_energy": [[1, 2, 3], [4, 5, 6]],
+    "rcov": [1, 2],
+    "arad": [1, 2],
     
     # pair parameters
     "c6matrix": [[0,0], [0,0]],
@@ -154,7 +159,7 @@ calc = dxtb.Calculator(
 
 # Calculate energy and forces using autograd
 pos = positions.clone().requires_grad_(True)
-energy = calc.energy(pos, chrg=charge, spin=1)
+energy = calc.energy(pos, chrg=charge, spin=0)
 
 # Calculate forces as negative gradient of energy
 (g,) = torch.autograd.grad(energy, pos, grad_outputs=torch.ones_like(energy), retain_graph=True, create_graph=True)

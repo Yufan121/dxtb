@@ -104,13 +104,17 @@ class ES3Cache(InteractionCache, TensorLike):
 
     shell_resolved: bool
     """Whether the third-order electrostatics are shell-resolved."""
+    
+    predicted_energy_shell: Tensor | None
+    """Predicted energy contributions spread to shell level."""
 
-    __slots__ = ["__store", "hd", "shell_resolved"]
+    __slots__ = ["__store", "hd", "shell_resolved", "predicted_energy_shell"]
 
     def __init__(
         self,
         hd: Tensor,
         shell_resolved: bool = False,
+        predicted_energy_shell: Tensor | None = None,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
     ):
@@ -120,6 +124,7 @@ class ES3Cache(InteractionCache, TensorLike):
         )
         self.hd = hd
         self.shell_resolved = shell_resolved
+        self.predicted_energy_shell = predicted_energy_shell
         self.__store = None
 
     class Store:
@@ -129,22 +134,29 @@ class ES3Cache(InteractionCache, TensorLike):
 
         hd: Tensor
         """Spread Hubbard derivatives of all atoms (not only unique)."""
+        
+        predicted_energy_shell: Tensor | None
+        """Predicted energy contributions spread to shell level."""
 
-        def __init__(self, hd: Tensor) -> None:
+        def __init__(self, hd: Tensor, predicted_energy_shell: Tensor | None = None) -> None:
             self.hd = hd
+            self.predicted_energy_shell = predicted_energy_shell
 
     def cull(self, conv: Tensor, slicers: Slicers) -> None:
         if self.__store is None:
-            self.__store = self.Store(self.hd)
+            self.__store = self.Store(self.hd, self.predicted_energy_shell)
 
         slicer = slicers["shell"] if self.shell_resolved else slicers["atom"]
         self.hd = self.hd[[~conv, *slicer]]
+        if self.predicted_energy_shell is not None:
+            self.predicted_energy_shell = self.predicted_energy_shell[[~conv, *slicer]]
 
     def restore(self) -> None:
         if self.__store is None:
             raise RuntimeError("Nothing to restore. Store is empty.")
 
         self.hd = self.__store.hd
+        self.predicted_energy_shell = self.__store.predicted_energy_shell
 
 
 class ES3(Interaction):
@@ -174,15 +186,18 @@ class ES3(Interaction):
         # Yufan added
         hubbard_derivs_peratom: Tensor | None = None,
         shell_scale_peratom: Tensor | None = None,
+        qsh_peratom: Tensor | None = None,
+        predicted_energy_peratom: Tensor | None = None,
         # Yufan added end
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
     ) -> None:
-        super().__init__(device, dtype)
+        super().__init__(device, dtype, qsh_peratom=qsh_peratom)
         self.hubbard_derivs = hubbard_derivs
         self.shell_scale = shell_scale
         self.hubbard_derivs_peratom = hubbard_derivs_peratom
         self.shell_scale_peratom = shell_scale_peratom
+        self.predicted_energy_peratom = predicted_energy_peratom
 
     # pylint: disable=unused-argument
     @override
@@ -239,26 +254,75 @@ class ES3(Interaction):
         if self.shell_scale is None:
             hd = ihelp.spread_uspecies_to_atom(self.hubbard_derivs)
         else:
-            scale = ihelp.spread_ushell_to_shell(           # spread the element-wise shell scale to the shell scale
-                self.shell_scale[ihelp.unique_angular] #+
-                # self.shell_scale_peratom[ihelp.unique_angular]  # Yufan added
-            )
+            # Start with global shell scaling factors
+            scale = ihelp.spread_ushell_to_shell(self.shell_scale[ihelp.unique_angular]) # atoms' shell
             
-                        
-            # traditional way
-            # hd = ihelp.spread_uspecies_to_shell(self.hubbard_derivs) * scale
+            # Add per-atom delta corrections if available (3rd_scale_s/p/d as deltas)
+            if self.shell_scale_peratom is not None:
+                # Extract s, p, d delta components from concatenated peratom tensor  
+                # n_atoms = len(ihelp.shells_per_atom)
+                # delta_s = self.shell_scale_peratom[:n_atoms]
+                # delta_p = self.shell_scale_peratom[n_atoms:2*n_atoms] 
+                # delta_d = self.shell_scale_peratom[2*n_atoms:3*n_atoms]
+                
+                # # Map per-atom deltas to shell-level using pure tensor operations (gradient-safe)
+                # # Use ihelp mapping functions to ensure gradient preservation
+                # delta_s_spread = ihelp.spread_atom_to_shell(delta_s)
+                # delta_p_spread = ihelp.spread_atom_to_shell(delta_p) 
+                # delta_d_spread = ihelp.spread_atom_to_shell(delta_d)
+                
+                # # Select appropriate delta based on shell angular momentum
+                # # Create boolean masks for each angular momentum type
+                # is_s = (ihelp.unique_angular == 0)
+                # is_p = (ihelp.unique_angular == 1) 
+                # is_d = (ihelp.unique_angular == 2)
+                
+                # # Combine deltas using masks (fully differentiable)
+                # delta_scale = (delta_s_spread * is_s.float() + 
+                #               delta_p_spread * is_p.float() + 
+                #               delta_d_spread * is_d.float())
+                # Final scale = global + per-atom deltas
+                
+                
+                # use ihelp.shells_per_atom to truncate (for each atom)
+                delta_scale = []
+                for i, n_shell in enumerate(ihelp.shells_per_atom):
+                    delta_scale.append(self.shell_scale_peratom[i, :n_shell])
+                delta_scale = torch.cat(delta_scale)
+
+                assert scale.shape == delta_scale.shape, f"{scale.shape} != {delta_scale.shape}"
+                                
+                scale = scale + delta_scale
             
             # ** Yufan added **
             # new way
-            hd_peratom = self.hubbard_derivs_peratom 
-            assert ihelp.spread_atom_to_shell(hd_peratom).shape == ihelp.spread_uspecies_to_shell(self.hubbard_derivs).shape, f"{ihelp.spread_atom_to_shell(hd_peratom).shape} != {ihelp.spread_uspecies_to_shell(self.hubbard_derivs).shape}"
-            # scale_peratom = self.shell_scale_peratom # no peratom scaling for now
-            hd = (ihelp.spread_uspecies_to_shell(self.hubbard_derivs) + 
-                  ihelp.spread_atom_to_shell(hd_peratom)) * scale
+            if self.hubbard_derivs_peratom is not None:
+                hd_peratom = self.hubbard_derivs_peratom 
+                hd_peratom_spread = ihelp.spread_atom_to_shell(hd_peratom)
+                hd_element_spread = ihelp.spread_uspecies_to_shell(self.hubbard_derivs)
+                
+                assert hd_peratom_spread.shape == hd_element_spread.shape, f"{hd_peratom_spread.shape} != {hd_element_spread.shape}"
+                
+                # 验证映射正确性 (可选的调试检查)
+                # assert hd_peratom.shape[0] == len(ihelp.shells_per_atom), f"Per-atom params length {hd_peratom.shape[0]} != n_atoms {len(ihelp.shells_per_atom)}"
+                
+                hd = (hd_element_spread + hd_peratom_spread) * scale
+            else:
+                hd = ihelp.spread_uspecies_to_shell(self.hubbard_derivs) * scale
             # ** Yufan added end **
             
+        # Handle predicted energy spreading from atoms to shells
+        predicted_energy_shell = None
+        if self.predicted_energy_peratom is not None:
+            # use ihelp.shells_per_atom to truncate (for each atom)
+            predicted_energy_shell = []
+            for i, n_shell in enumerate(ihelp.shells_per_atom):
+                predicted_energy_shell.append(self.predicted_energy_peratom[i, :n_shell])
+            predicted_energy_shell = torch.cat(predicted_energy_shell)
+            
         self.cache = ES3Cache(
-            hd, shell_resolved=(self.shell_scale is not None), **self.dd
+            hd, shell_resolved=(self.shell_scale is not None), 
+            predicted_energy_shell=predicted_energy_shell, **self.dd
         )
 
         return self.cache
@@ -314,11 +378,17 @@ class ES3(Interaction):
         Tensor
             Shell-wise third-order Coulomb interaction energy.
         """
-        return (
+        base_energy = (
             torch.zeros_like(qat)
             if self.shell_scale is None
             else cache.hd * torch.pow(qat, 3.0) / 3.0
         )
+        
+        # Add predicted energy contribution if available
+        if cache.predicted_energy_shell is not None:
+            base_energy = base_energy + cache.predicted_energy_shell
+            
+        return base_energy
 
     @override
     def get_monopole_atom_potential(
@@ -370,11 +440,15 @@ class ES3(Interaction):
         Tensor
             Shell-wise third-order Coulomb interaction potential.
         """
-        return (
+        base_potential = (
             torch.zeros_like(qsh)
             if self.shell_scale is None
             else cache.hd * torch.pow(qsh, 2.0)
         )
+        # Add predicted energy contribution if available (keep shape)
+        if cache.predicted_energy_shell is not None:
+            base_potential = base_potential + cache.predicted_energy_shell
+        return base_potential
 
 
 def new_es3(
@@ -436,21 +510,33 @@ def new_es3(
         )
     )
     
-    # Yufan added
-    shell_scale_peratom = (
-        None
-        if par.is_false("thirdorder", "shell")
-        else torch.cat(
-            [torch.atleast_1d(par.get_atom_param(unique, key="s")),
-             torch.atleast_1d(par.get_atom_param(unique, key="p")),
-             torch.atleast_1d(par.get_atom_param(unique, key="d"))],
-        )
-    )
+    # Try to get per-atom shell scaling deltas (3rd_scale_s/p/d as corrections to global shell_scale)
+    try:
+        shell_scale_peratom = (
+            par.get_atom_param(unique, "3rd_scale")
+        )       
 
-
-    # Yufan added end
+    except:
+        shell_scale_peratom = None  # Fallback: use only global shell_scale
+        
+        
+    try: 
+        qsh_peratom = par.get_atom_param(unique, "qsh")
+    except:
+        qsh_peratom = None
+        
+    try:
+        predicted_energy_peratom = par.get_atom_param(unique, "predicted_energy")
+    except:
+        predicted_energy_peratom = None
+        
+        
+    if shell_scale_peratom is not None:
+        print(f"shell_scale_peratom: {shell_scale_peratom.shape}")
+        
     return ES3(hubbard_derivs, shell_scale=shell_scale, 
                # Yufan added
                hubbard_derivs_peratom=hubbard_derivs_peratom, shell_scale_peratom=shell_scale_peratom,
+               qsh_peratom=qsh_peratom, predicted_energy_peratom=predicted_energy_peratom,
                # Yufan added end
                **dd)

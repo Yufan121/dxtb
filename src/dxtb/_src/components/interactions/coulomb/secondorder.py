@@ -1150,6 +1150,8 @@ def new_es2(
     lhubbard_peratom = (
         par.get_atom_param(unique, "lgam") if shell_resolved is True else None
     )
+    
+    print(f"lhubbard_peratom: {lhubbard_peratom.shape}")
 
     return ES2(
         hubbard,

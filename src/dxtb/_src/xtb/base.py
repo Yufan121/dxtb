@@ -135,7 +135,7 @@ class BaseHamiltonian(HamiltonianABC, TensorLike):
         # Initialize Hamiltonian parameters
 
         # atom-resolved parameters
-        self.rad = ATOMIC_RADII.to(**self.dd)[self.unique]
+        self.rad = ATOMIC_RADII.to(**self.dd)[self.unique]                  # TODO
         self.en = par.get_elem_param(self.unique, "en", pad_val=PAD)
         self.enscale = par.get("hamiltonian.xtb.enscale")
 
@@ -147,6 +147,8 @@ class BaseHamiltonian(HamiltonianABC, TensorLike):
         self.valence = self._get_elem_valence(par)
         
         # load per atom deltas
+        self.rad_peratom = par.get_atom_param(self.unique, "arad")
+        
         self.en_peratom = par.get_atom_param(self.unique, "en")
         self.kcn_peratom = par.get_atom_param(self.unique, "kcn")
         self.selfenergy_peratom = par.get_atom_param(self.unique, "levels")
@@ -155,10 +157,10 @@ class BaseHamiltonian(HamiltonianABC, TensorLike):
         
 
         # shell-pair-resolved pair parameters
-        self.hscale = self._get_hscale(par) # 壳层间缩放因子矩阵, per ushell pair
+        self.hscale = self._get_hscale(par) # 壳层间缩放因子矩阵, per ushell pair, # not used
         self.kpair = par.get_pair_param(self.unique.tolist())       # 怎么处理，目前全1，暂时不处理
 
-        self.hscale_peratom = self._get_hscale_peratomshell(par) # 
+        self.hscale_peratom = self._get_hscale_peratomshell(par) # 直接预测每个原子的hscale
         # TODO, kpair， pending for now, currently all 1
         
         # unit conversion
@@ -297,7 +299,7 @@ class BaseHamiltonian(HamiltonianABC, TensorLike):
         if self.cn is None:
             cn = torch.zeros_like(self.numbers, **self.dd)
         else:
-            cn = self.cn(self.numbers, positions)
+            cn = self.cn(self.numbers, positions)   # TODO
 
         kcn = self.ihelp.spread_ushell_to_shell(self.kcn)
         kcn_peratom_list = []   # 获取每个原子的kcn
@@ -324,7 +326,11 @@ class BaseHamiltonian(HamiltonianABC, TensorLike):
         # Eq.24: PI(R_AB, l, l')
         # ----------------------
         distances = storch.cdist(positions, positions, p=2)
-        rad = self.ihelp.spread_uspecies_to_atom(self.rad)
+        rad = self.ihelp.spread_uspecies_to_atom(self.rad)  # TODO
+        # add rad_peratom
+        assert self.rad_peratom.shape == rad.shape, f"self.rad_peratom.shape: {self.rad_peratom.shape}, rad.shape: {rad.shape}"
+        rad = rad + self.rad_peratom
+        
 
         rr = storch.divide(distances, rad.unsqueeze(-1) + rad.unsqueeze(-2))
         rr_shell = self.ihelp.spread_atom_to_shell(

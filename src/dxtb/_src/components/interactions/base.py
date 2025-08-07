@@ -96,9 +96,11 @@ class Interaction(Component):
         self,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
+        qsh_peratom: Tensor | None = None,
     ):
         """Initialize the interaction."""
         super().__init__(device, dtype)
+        self.qsh_peratom = qsh_peratom
 
     def get_cache(
         self,
@@ -157,6 +159,20 @@ class Interaction(Component):
 
         # monopole potential: shell-resolved
         qsh = ihelp.reduce_orbital_to_shell(charges.mono)
+        
+        # Apply per-atom shell charge corrections if available
+        if hasattr(self, 'qsh_peratom') and self.qsh_peratom is not None:            
+            
+            # use ihelp.shells_per_atom to truncate (for each atom)
+            delta_qsh = []
+            for i, n_shell in enumerate(ihelp.shells_per_atom):
+                delta_qsh.append(self.qsh_peratom[i, :n_shell])
+            delta_qsh = torch.cat(delta_qsh)
+
+            assert delta_qsh.shape == qsh.shape, f"{delta_qsh.shape} != {qsh.shape}"
+
+            qsh = qsh + delta_qsh
+        
         vsh = self.get_monopole_shell_potential(cache, qsh)
 
         # monopole potential: atom-resolved
@@ -337,6 +353,21 @@ class Interaction(Component):
             )
 
         qsh = ihelp.reduce_orbital_to_shell(charges.mono)
+        
+        # Apply per-atom shell charge corrections if available
+        if hasattr(self, 'qsh_peratom') and self.qsh_peratom is not None:            
+            
+            # use ihelp.shells_per_atom to truncate (for each atom)
+            delta_qsh = []
+            for i, n_shell in enumerate(ihelp.shells_per_atom):
+                delta_qsh.append(self.qsh_peratom[i, :n_shell])
+            delta_qsh = torch.cat(delta_qsh)
+
+            assert delta_qsh.shape == qsh.shape, f"{delta_qsh.shape} != {qsh.shape}"
+
+            qsh = qsh + delta_qsh
+        
+        
         esh = self.get_monopole_shell_energy(cache, qsh)
 
         qat = ihelp.reduce_shell_to_atom(qsh)
