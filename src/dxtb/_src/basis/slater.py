@@ -112,7 +112,7 @@ def slater_to_gauss(
     # ityp: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17
     #    n: 1 2 3 4 5 2 3 4 5  3  4  5  4  5  5  6  6
     #    l: 0 0 0 0 0 1 1 1 1  2  2  2  3  3  4  0  1
-    itype = n + torch.tensor([0, 4, 7, 9, 10], device=zeta.device)[l] - 1
+    itype = n + torch.tensor([0, 4, 7, 9, 10], device=zeta.device)[l] - 1 # 把n, l映射到 STO-nG 表中的轨道类型索引
     if n == 6 and ng == 6:
         itype = 15 + l
 

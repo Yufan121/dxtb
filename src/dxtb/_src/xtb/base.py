@@ -145,16 +145,42 @@ class BaseHamiltonian(HamiltonianABC, TensorLike):
         self.shpoly = par.get_elem_param(self.unique, "shpoly", pad_val=PAD)
         self.refocc = par.get_elem_param(self.unique, "refocc", pad_val=PAD)
         self.valence = self._get_elem_valence(par)
+        self.slater = par.get_elem_param(self.unique, "slater", pad_val=PAD)
+        self.slater = self.ihelp.spread_ushell_to_shell(self.slater)
         
-        # load per atom deltas
+        ###### load per atom deltas
         self.rad_peratom = par.get_atom_param(self.unique, "arad")
-        
         self.en_peratom = par.get_atom_param(self.unique, "en")
         self.kcn_peratom = par.get_atom_param(self.unique, "kcn")
         self.selfenergy_peratom = par.get_atom_param(self.unique, "levels")
         self.shpoly_peratom = par.get_atom_param(self.unique, "shpoly")
         # self.refocc_peratom = par.get_atom_param(self.unique, "refocc")
+        self.slater_peratom = par.get_atom_param(self.unique, "slater")
+        z = self.slater_peratom        
+        z_list = []
+        for i, n_shell in enumerate(self.ihelp.shells_per_atom):
+            z_list.append(z[i, :n_shell])
+        z = torch.cat(z_list)
+        self.slater_peratom = z
+
         
+        ###### get pair parameters
+        self.theta_ss_perpair = par.get_atom_param(self.unique, "theta_ss") # shape (natom * natom))
+        self.theta_pp_perpair = par.get_atom_param(self.unique, "theta_pp")
+        self.theta_dd_perpair = par.get_atom_param(self.unique, "theta_dd")
+        self.theta_sp_perpair = par.get_atom_param(self.unique, "theta_sp")
+        self.theta_sd_perpair = par.get_atom_param(self.unique, "theta_sd")
+        self.theta_pd_perpair = par.get_atom_param(self.unique, "theta_pd")
+        
+        self.zeta_ss_perpair = par.get_atom_param(self.unique, "zeta_ss")
+        self.zeta_pp_perpair = par.get_atom_param(self.unique, "zeta_pp")
+        self.zeta_dd_perpair = par.get_atom_param(self.unique, "zeta_dd")
+        self.zeta_sp_perpair = par.get_atom_param(self.unique, "zeta_sp")
+        self.zeta_sd_perpair = par.get_atom_param(self.unique, "zeta_sd")
+        self.zeta_pd_perpair = par.get_atom_param(self.unique, "zeta_pd")
+        
+        # make shell matrix
+        self.theta_shell, self.zeta_shell = self._make_shell_matrix()
 
         # shell-pair-resolved pair parameters
         self.hscale = self._get_hscale(par) # 壳层间缩放因子矩阵, per ushell pair, # not used
@@ -197,6 +223,57 @@ class BaseHamiltonian(HamiltonianABC, TensorLike):
                     f"Tensor '{name}' is on device '{tensor.device}'; "
                     f"expected '{self.device}'."
                 )
+
+    def _make_shell_matrix(self) -> tuple[Tensor, Tensor]:
+        """
+        Make the shell matrix using self.ihelp.shells_to_ushell
+        input: theta_ss_perpair, theta_pp_perpair, theta_dd_perpair, theta_sp_perpair, theta_sd_perpair, theta_pd_perpair (shape: (natom, natom))
+        0: s, 1: p, 2: d (max is d)
+        output: theta_shell, zeta_shell (shape: (shell, shell))
+        """
+        n_shells = len(self.ihelp.shells_to_ushell)
+        theta_shell = torch.zeros((n_shells, n_shells), **self.dd)
+        zeta_shell = torch.zeros((n_shells, n_shells), **self.dd)
+        
+        # Map angular momentum to parameter names
+        angular_to_param = {
+            (0, 0): ('ss', self.theta_ss_perpair, self.zeta_ss_perpair),  # s-s
+            (1, 1): ('pp', self.theta_pp_perpair, self.zeta_pp_perpair),  # p-p
+            (2, 2): ('dd', self.theta_dd_perpair, self.zeta_dd_perpair),  # d-d
+            (0, 1): ('sp', self.theta_sp_perpair, self.zeta_sp_perpair),  # s-p
+            (1, 0): ('sp', self.theta_sp_perpair, self.zeta_sp_perpair),  # p-s (same as s-p)
+            (0, 2): ('sd', self.theta_sd_perpair, self.zeta_sd_perpair),  # s-d
+            (2, 0): ('sd', self.theta_sd_perpair, self.zeta_sd_perpair),  # d-s (same as s-d)
+            (1, 2): ('pd', self.theta_pd_perpair, self.zeta_pd_perpair),  # p-d
+            (2, 1): ('pd', self.theta_pd_perpair, self.zeta_pd_perpair),  # d-p (same as p-d)
+        }
+        
+        for i in range(n_shells):
+            ush_i = self.ihelp.shells_to_ushell[i]
+            ang_i = self.ihelp.unique_angular[ush_i]
+            
+            for j in range(n_shells):
+                ush_j = self.ihelp.shells_to_ushell[j]
+                ang_j = self.ihelp.unique_angular[ush_j]
+                
+                # Get the appropriate parameters based on angular momentum pair
+                ang_pair = (int(ang_i), int(ang_j))
+                if ang_pair in angular_to_param:
+                    param_name, theta_param, zeta_param = angular_to_param[ang_pair]
+                    
+                    # Get the atom indices for shells i and j
+                    atom_i = self.ihelp.shells_to_atom[i]
+                    atom_j = self.ihelp.shells_to_atom[j]
+                    
+                    theta_shell[i, j] = theta_param[atom_i, atom_j]
+                    zeta_shell[i, j] = zeta_param[atom_i, atom_j]
+                else:
+                    raise ValueError(f"Unsupported angular momentum pair: {ang_pair}")
+            
+        return theta_shell, zeta_shell
+
+
+
 
     @property
     def matrix(self) -> Tensor | None:
@@ -320,7 +397,7 @@ class BaseHamiltonian(HamiltonianABC, TensorLike):
         selfenergy = self.ihelp.spread_ushell_to_shell(self.selfenergy)
         assert selfenergy_peratom_flat.shape == selfenergy.shape, f"selfenergy_peratom_flat.shape: {selfenergy_peratom_flat.shape}, selfenergy.shape: {selfenergy.shape}"
         selfenergy = selfenergy + selfenergy_peratom_flat
-        selfenergy = selfenergy - kcn * self.ihelp.spread_atom_to_shell(cn)
+        selfenergy = selfenergy - kcn * self.ihelp.spread_atom_to_shell(cn)    ###### eq17
 
         # ----------------------
         # Eq.24: PI(R_AB, l, l')
@@ -345,7 +422,7 @@ class BaseHamiltonian(HamiltonianABC, TensorLike):
         shpoly_peratom_flat = torch.cat(shpoly_peratom_list)
         assert shpoly_peratom_flat.shape == shpoly.shape, f"shpoly_peratom_flat.shape: {shpoly_peratom_flat.shape}, shpoly.shape: {shpoly.shape}"
         shpoly = shpoly + shpoly_peratom_flat
-        var_pi = (1.0 + shpoly.unsqueeze(-1) * rr_shell) * (
+        var_pi = (1.0 + shpoly.unsqueeze(-1) * rr_shell) * (  ###### eq 19
             1.0 + shpoly.unsqueeze(-2) * rr_shell
         )
 
@@ -356,7 +433,7 @@ class BaseHamiltonian(HamiltonianABC, TensorLike):
         en_peratom = self.ihelp.spread_atom_to_shell(self.en_peratom)
         assert en_peratom.shape == en.shape, f"en_peratom.shape: {en_peratom.shape}, en.shape: {en.shape}"
         en = en + en_peratom
-        var_x = torch.where(
+        var_x = torch.where( # eq 16: (1 + k_en * (en_A - en_B)^2))
             mask_shell_diagonal,
             1.0
             + self.enscale
@@ -374,29 +451,97 @@ class BaseHamiltonian(HamiltonianABC, TensorLike):
         # assert self.hscale_peratom.shape == hscale.shape, f"self.hscale_peratom.shape: {self.hscale_peratom.shape}, hscale.shape: {hscale.shape}"
         hscale = self.hscale_peratom # no longer use hscale
 
-        var_k = torch.where(
+        var_k = torch.where( # 
             valence.unsqueeze(-1) * valence.unsqueeze(-2),
             hscale * kpair * var_x,
             hscale,
-        )
+        ) 
 
         # ------------
-        # Eq.23: H_EHT
+        # Eq.23: H_EHT ###### eq16 and eq17
         # ------------
-        var_h = torch.where(
+        var_h = torch.where( # eq 16: 1/2 (H_kk + H_lmbd_lmbd)
             mask_shell,
             0.5 * (selfenergy.unsqueeze(-1) + selfenergy.unsqueeze(-2)),
             zero,
         )
+        
+        hcore_shell =   torch.where(
+                            mask_shell_diagonal,
+                            var_pi * var_k * var_h,  # scale only off-diagonals
+                            var_h,
+                        )
+        
+        
+        
+        
+        ############## TODO
+        ###### additional multiplicative term for hcore ##### including the diagonal term START
+        
+        #### 1.0 get r_AB, duplicate for each shell pair
+        # Use shells_per_atom to duplicate distances for each shell pair
+        shells_per_atom = self.ihelp.shells_per_atom
+        total_shells = shells_per_atom.sum()
+        r_AB_shell = torch.zeros((total_shells, total_shells), **self.dd)
+        # Create shell index mapping for efficient tensor operations
+        shell_indices = torch.cumsum(torch.cat([torch.tensor([0], device=shells_per_atom.device), shells_per_atom[:-1]]), dim=0)
+        for i, n_shells_i in enumerate(shells_per_atom):
+            start_i = shell_indices[i]
+            end_i = start_i + n_shells_i
+            for j, n_shells_j in enumerate(shells_per_atom):
+                start_j = shell_indices[j]
+                end_j = start_j + n_shells_j
+                # Fill the block corresponding to atom pair (i,j)
+                r_AB_shell[start_i:end_i, start_j:end_j] = distances[i, j]  # correctness verified      
+        
+        #### 1.1 get theta, truncated in init: self.theta_shell, self.zeta_shell
+        # Done in init
 
-        hcore = self.ihelp.spread_shell_to_orbital(
-            torch.where(
-                mask_shell_diagonal,
-                var_pi * var_k * var_h,  # scale only off-diagonals
-                var_h,
-            ),
+        #### 1.2 get r_AB * exp(- (ZETA + zeta_l + zeta_l') * r_AB)   
+        # Get the total slater per shell
+        slater = self.slater + self.slater_peratom
+             
+        # Create shell-wise slater matrix
+        slater_i = slater.unsqueeze(-1)  # (n_shell, 1)
+        slater_j = slater.unsqueeze(-2)  # (1, n_shell)
+        
+        # Calculate ZETA + zeta_l + zeta_l' term, ZETA is shell-pair matrix
+        exponent_term = self.zeta_shell + slater_i + slater_j
+        
+        # Calculate r_AB * exp(- (ZETA + zeta_l + zeta_l') * r_AB)
+        H_multi = r_AB_shell * torch.exp(-exponent_term * r_AB_shell)
+
+        #### 1.3 get theta * r_AB * exp(- (ZETA + zeta_l + zeta_l') * r_AB) + 1
+        H_multi = self.theta_shell * H_multi + 1
+        
+        
+        #### 1.4 normalization factor
+        # TODO
+
+        #### 1.5 multiply
+        hcore_shell = hcore_shell * H_multi
+
+        ###### additional multiplicative term for hcore ##### including the diagonal term END
+
+
+        # print hcore_shell stats and H_multi stats
+        print(f"hcore_shell.min(): {hcore_shell.min()}, hcore_shell.max(): {hcore_shell.max()}")
+        print(f"H_multi.min(): {H_multi.min()}, H_multi.max(): {H_multi.max()}")
+
+
+
+        print(f"hcore_shell.shape: {hcore_shell.shape}")
+        # print(f"hcore_shell: {hcore_shell}")
+        
+        
+        hcore = self.ihelp.spread_shell_to_orbital(   ##### TODO: add custom scaling after this hcore.
+            hcore_shell,
             dim=(-2, -1),
         )
+        
+        print(f"hcore.shape: {hcore.shape}") # (shell, shell)
+        # print(f"hcore: {hcore}")
+
 
         if overlap is not None:
             hcore = hcore * overlap

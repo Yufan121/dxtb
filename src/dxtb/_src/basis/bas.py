@@ -524,31 +524,31 @@ class Basis(TensorLike):
                 s += 1
             
                 
-        # # # tracking only required for orthogonalization
-        # # alphas_peratom = []
-        # # coeffs_peratom = []
-        # # s_peratom = 0   # unique shell index
-        # # # Yufan added, per-atom alphas and coeffs
-        # # for aid in range(self.numbers.size(0)):
-        # #     eid = self.ihelp.atom_to_unique[aid]
-        # #     shells = self.ihelp.ushells_per_unique[eid]
-        # #     for l in range(shells):
-        # #         sid = self.ihelp.shells_to_ushell[s_peratom]
-        # #         alpha, coeff = slater_to_gauss(
-        # #             self.ngauss[sid],
-        # #             self.pqn[sid],
-        # #             self.ihelp.unique_angular[sid],
-        # #             self.slater_peratom[s_peratom],
-        # #         )
-        # #         # 只在本原子内部正交化
-        # #         if self.valence[sid].item() is False and l > 0:
-        # #             alpha, coeff = orthogonalize(
-        # #                 (alphas_peratom[-1], alpha),
-        # #                 (coeffs_peratom[-1], coeff),
-        # #             )
-        # #         alphas_peratom.append(alpha)
-        # #         coeffs_peratom.append(coeff)
-        # #         s_peratom += 1
+        # # tracking only required for orthogonalization
+        # alphas_peratom = []
+        # coeffs_peratom = []
+        # s_peratom = 0   # unique shell index
+        # # Yufan added, per-atom alphas and coeffs
+        # for aid in range(self.numbers.size(0)):
+        #     eid = self.ihelp.atom_to_unique[aid]
+        #     shells = self.ihelp.ushells_per_unique[eid]
+        #     for l in range(shells):
+        #         sid = self.ihelp.shells_to_ushell[s_peratom]
+        #         alpha, coeff = slater_to_gauss(
+        #             self.ngauss[sid],
+        #             self.pqn[sid],
+        #             self.ihelp.unique_angular[sid],
+        #             self.slater_peratom[s_peratom],
+        #         )
+        #         # 只在本原子内部正交化
+        #         if self.valence[sid].item() is False and l > 0:
+        #             alpha, coeff = orthogonalize(
+        #                 (alphas_peratom[-1], alpha),
+        #                 (coeffs_peratom[-1], coeff),
+        #             )
+        #         alphas_peratom.append(alpha)
+        #         coeffs_peratom.append(coeff)
+        #         s_peratom += 1
 
 
         # call _create_peratom_cgtos

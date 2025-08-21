@@ -366,7 +366,7 @@ class GFN2Hamiltonian(BaseHamiltonian):
         # denominator_safe[denominator_safe == 0] = 1.0  # 0的地方设为1，防止除0
         # safe_fraction = numerator / denominator_safe
         # safe_fraction = safe_fraction * (denominator != 0)  # 0的地方强制为0
-        zmat = storch.pow(2 * safe_fraction, wexp)
+        zmat = storch.pow(2 * safe_fraction, wexp) # (2*sqrt(z1 z2) ) /  z1 + z2
 
         shell_to_ushell = self.ihelp.shells_to_ushell   # the map
         len_ = len(shell_to_ushell)
@@ -398,7 +398,7 @@ class GFN2Hamiltonian(BaseHamiltonian):
                         )
                     else:
                         kij = 1.0
-                ksh[i, j] = kij * zmat[i, j]
+                ksh[i, j] = kij * zmat[i, j] # kij is k_ll' in eq 16
         return ksh
 
     def get_gradient(

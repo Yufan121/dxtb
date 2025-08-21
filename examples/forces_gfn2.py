@@ -105,9 +105,9 @@ atom_param_dict = { # arranged by (param, atom). pass to param iniatialization.
     "rmax": 0.0,
     
 
-    # atoms' parameters
+    ###### atoms' parameters
     "levels": [[0,0,0], [0,0,0]],   
-    "slater": [[-0.1,-0.2,-0.3], [0,0,0]],   
+    "slater": [[0.0,0.0,0.0], [0.0,0.0,0.0]],   
     # "ngauss": [[0,0,0], [0,0,0]],   # int should be ignored
     # "refocc": [[0,0,0], [0,0,0]],   # int might be ignored
     "shpoly": [[0,0,0], [0,0,0]],   
@@ -124,13 +124,27 @@ atom_param_dict = { # arranged by (param, atom). pass to param iniatialization.
     "mprad": [0, 0],          # Done
     "mpvcn": [0, 0],          # Done
     "3rd_scale": [[1, 2, 3], [4, 5, 6]],
-    "qsh": [[1, 2, 3], [4, 5, 6]],
-    "predicted_energy": [[1, 2, 3], [4, 5, 6]],
+    # "qsh": [[1, 2, 3], [4, 5, 6]],
+    # "predicted_energy": [[1, 2, 3], [4, 5, 6]],
     "rcov": [1, 2],
     "arad": [1, 2],
     
-    # pair parameters
-    "c6matrix": [[0,0], [0,0]],
+    ##### pair parameters
+    # "c6matrix": [[0,0], [0,0]],
+    "theta_ss": [[0.1,0.2], [0.3,0.4]],
+    "theta_pp": [[0.5,0.6], [0.7,0.8]],
+    "theta_dd": [[0.9,0.10], [0.11,0.12]],
+    "theta_sp": [[0.13,0.14], [0.15,0.16]],
+    "theta_sd": [[0.17,0.18], [0.19,0.20]],
+    "theta_pd": [[0.21,0.22], [0.23,0.24]],
+    
+    "zeta_ss": [[0,0], [0,0]],
+    "zeta_pp": [[0,0], [0,0]],
+    "zeta_dd": [[0,0], [0,0]],
+    "zeta_sp": [[0,0], [0,0]],
+    "zeta_sd": [[0,0], [0,0]],
+    "zeta_pd": [[0,0], [0,0]],
+    
 }
 # make all values tensors and requires_grad = True
 for key, value in atom_param_dict.items():
