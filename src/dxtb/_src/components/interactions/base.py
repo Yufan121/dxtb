@@ -173,7 +173,7 @@ class Interaction(Component):
 
             qsh = qsh + delta_qsh
         
-        vsh = self.get_monopole_shell_potential(cache, qsh)
+        vsh = self.get_monopole_shell_potential(cache, qsh) # has nan
 
         # monopole potential: atom-resolved
         qat = ihelp.reduce_shell_to_atom(qsh)

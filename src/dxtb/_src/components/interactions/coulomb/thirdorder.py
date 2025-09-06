@@ -294,6 +294,10 @@ class ES3(Interaction):
                                 
                 scale = scale + delta_scale
             
+            # scale = scale with softplus
+            scale = torch.nn.functional.relu(scale)
+            
+            
             # ** Yufan added **
             # new way
             if self.hubbard_derivs_peratom is not None:
@@ -324,6 +328,13 @@ class ES3(Interaction):
             hd, shell_resolved=(self.shell_scale is not None), 
             predicted_energy_shell=predicted_energy_shell, **self.dd
         )
+        
+        def check_for_nan(tensor: Tensor, tensor_name: str) -> None:
+            """Check if a tensor contains NaN values and raise an error if it does."""
+            if torch.isnan(tensor).any():
+                raise ValueError(f"{tensor_name} tensor contains NaN values.")
+
+        check_for_nan(hd, "ES3.hd")
 
         return self.cache
 

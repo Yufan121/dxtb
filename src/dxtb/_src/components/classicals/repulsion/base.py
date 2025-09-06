@@ -227,6 +227,11 @@ class BaseRepulsion(Classical):
         arep = self.arep_peratom + arep
         zeff = self.zeff_peratom + zeff
         
+        #
+        arep = torch.nn.functional.relu(arep)
+        zeff = torch.nn.functional.relu(zeff)
+
+        
         kexp = ihelp.spread_uspecies_to_atom(
             self.kexp.expand(torch.unique(numbers).shape)
         )
@@ -254,6 +259,17 @@ class BaseRepulsion(Classical):
             k = torch.where(kmask, k, self.klight) * mask
 
         self.cache = BaseRepulsionCache(mask, a, z, k)
+        
+        def check_for_nan(tensor: Tensor, tensor_name: str) -> None:
+            """Check if a tensor contains NaN values and raise an error if it does."""
+            if torch.isnan(tensor).any():
+                raise ValueError(f"{tensor_name} tensor contains NaN values.")
+
+        check_for_nan(a, "BaseRepulsion.a")
+        check_for_nan(z, "BaseRepulsion.z")
+        check_for_nan(k, "BaseRepulsion.k")
+
+        
         return self.cache
 
     @abstractmethod

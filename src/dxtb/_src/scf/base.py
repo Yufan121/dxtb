@@ -756,6 +756,7 @@ class BaseSCF:
             Density matrix.
         """
 
+
         self._data.hamiltonian = self.potential_to_hamiltonian(potential)
         return self.hamiltonian_to_density(self._data.hamiltonian)
 
@@ -828,20 +829,49 @@ class BaseSCF:
             Hamiltonian matrix.
         """
 
+
+        def check_for_nan(tensor: Tensor, tensor_name: str) -> None:
+            """Check if a tensor contains NaN values and raise an error if it does."""
+            if torch.isnan(tensor).any():
+                raise ValueError(f"{tensor_name} tensor contains NaN values.")
+
+        check_for_nan(self._data.ints.hcore, "self._data.ints.hcore")
+        check_for_nan(self._data.ints.overlap, "self._data.ints.overlap")
+
+
+
         h1 = self._data.ints.hcore
+
+        # print(f"h1 shape: {h1.shape}, h1: {h1}")
+
 
         if potential.mono is not None:
             v = potential.mono.unsqueeze(-1) + potential.mono.unsqueeze(-2)
             h1 = h1 - (0.5 * self._data.ints.overlap * v)
 
+
+        # print(f"h1 shape: {h1.shape}, h1: {h1}")
+
         def add_vmp_to_h1(h1: Tensor, mpint: Tensor, vmp: Tensor) -> Tensor:
             # spread potential to orbitals
             v = self._data.ihelp.spread_atom_to_orbital(vmp, dim=-2, extra=True)
 
+
+            # Yufan: check if v has nan
+            # print(f"v shape: {v.shape}, v: {v}")
+            check_for_nan(v, "v")
+            
             # Form dot product over the the multipolar components.
             #  - shape multipole integral: (..., x, norb, norb)
             #  - shape multipole potential: (..., norb, x)
             tmp = 0.5 * einsum("...kij,...jk->...ij", mpint, v)
+            
+            # print(f"tmp shape: {tmp.shape}, tmp: {tmp}")
+            check_for_nan(tmp, "tmp")
+            
+            # print(f"(tmp + tmp.mT) shape: {(tmp + tmp.mT).shape}, tmp + tmp.mT: {tmp + tmp.mT}")
+            check_for_nan(tmp + tmp.mT, "tmp + tmp.mT")
+            
             return h1 - (tmp + tmp.mT)
 
         if potential.dipole is not None:
@@ -849,10 +879,15 @@ class BaseSCF:
             if dpint is not None:
                 h1 = add_vmp_to_h1(h1, dpint, potential.dipole)
 
+        # print(f"h1 shape: {h1.shape}, h1: {h1}")
+
+
         if potential.quad is not None:
             qpint = self._data.ints.quadrupole
             if qpint is not None:
                 h1 = add_vmp_to_h1(h1, qpint, potential.quad)
+
+        # print(f"h1 shape: {h1.shape}, h1: {h1}")
 
         return h1
 
@@ -870,6 +905,10 @@ class BaseSCF:
         Tensor
             Density matrix.
         """
+        # print(f"hamiltonian shape: {hamiltonian.shape}")
+        # print(f"hamiltonian: {hamiltonian}")
+        if torch.isnan(hamiltonian).any():
+            raise ValueError("Hamiltonian tensor contains NaN values.")
 
         self._data.evals, self._data.evecs = self.diagonalize(hamiltonian)
 

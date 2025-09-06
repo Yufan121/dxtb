@@ -312,6 +312,14 @@ class AES2(Interaction):
         if ihelp is None:
             raise ValueError("IndexHelper is required for AES2 cache creation.")
 
+
+        def check_for_nan(tensor: Tensor, tensor_name: str) -> None:
+            """Check if a tensor contains NaN values and raise an error if it does."""
+            if torch.isnan(tensor).any():
+                raise ValueError(f"{tensor_name} tensor contains NaN values.")
+
+
+
         cachvars = (
             numbers.detach().clone(), 
             positions.detach().clone(),
@@ -355,6 +363,9 @@ class AES2(Interaction):
         assert self.rad_peratom.shape == rad.shape, f"{self.rad_peratom.shape} != {rad.shape}"
         vcn = self.vcn_peratom + vcn
         rad = self.rad_peratom + rad
+        # 
+        vcn = torch.nn.functional.relu(vcn)
+        rad = torch.nn.functional.relu(rad)
 
         cn = cn_d3(numbers, positions, counting_function=gfn2_count)
 
@@ -364,9 +375,15 @@ class AES2(Interaction):
         mrad = rad + t2
         # dmradcn = -self.kexp * t2 * t1 / (1 + t1)
 
+        # mrad = torch.nn.functional.relu(mrad)
+
         amat_sd, amat_dd, amat_sq = self.get_atom_coulomb_matrix(
             numbers, positions, mrad
         )
+        
+        check_for_nan(amat_sd, "AES2.amat_sd")
+        check_for_nan(amat_dd, "AES2.amat_dd")
+        check_for_nan(amat_sq, "AES2.amat_sq")
 
         self.cache = AES2Cache(
             mrad=mrad,

@@ -46,7 +46,6 @@ path = Path(__file__).resolve().parent / "molecules" / "lih.xyz"
 numbers, positions = read.read(path, ftype="xyz", **dd)
 print(f'numbers: {numbers}, positions: {positions}')
 
-charge = 0
 
 # Calculator options
 opts = {
@@ -106,44 +105,44 @@ atom_param_dict = { # arranged by (param, atom). pass to param iniatialization.
     
 
     ###### atoms' parameters
-    "levels": [[0,0,0], [0,0,0]],   
+    "levels": [[0,0,0], [0,0,0]],                               # negative yes!
     "slater": [[0.0,0.0,0.0], [0.0,0.0,0.0]],   
     # "ngauss": [[0,0,0], [0,0,0]],   # int should be ignored
     # "refocc": [[0,0,0], [0,0,0]],   # int might be ignored
-    "shpoly": [[0,0,0], [0,0,0]],   
-    "kcn": [[0,0,0], [0,0,0]],
-    "gam": [0.1, 0.2],   # Done
-    "lgam": [[0.0,0.1,0.2], [0.3,0.4,0.5]],  # Done
-    "gam3": [0.5, 0.5],     # Done
-    "zeff": [10, 0],    # dF/dp problem
-    "arep": [10, 0],    # dF/dp problem
-    "en": [0, 0],
+    "shpoly": [[0,0,0], [0,0,0]],                       # negative yes!
+    "kcn": [[0,0,0], [0,0,0]],                               # negative yes!
+    "gam": [0.1, 0.2],   # Done                              # negative yes!     
+    "lgam": [[-0.0,0.1,0.2], [0.3,0.4,0.5]],  # Done        # negative NOT CONVERGED
+    "gam3": [0.5, 0.5],     # Done                          # negative yes!         
+    "zeff": [-1000, -10000],                                # negative yes!         
+    "arep": [-1000, -1000],                                 # negative yes!         
+    "en": [0, 0],                                            # negative yes!         
     # multipole parameters
     "dkernel": [0, 0],         # Done
     "qkernel": [0, 0],         # Done
     "mprad": [0, 0],          # Done
     "mpvcn": [0, 0],          # Done
-    "3rd_scale": [[1, 2, 3], [4, 5, 6]],
+    "3rd_scale": [[0, 0, 0], [0, 0, 0]],
     # "qsh": [[1, 2, 3], [4, 5, 6]],
     # "predicted_energy": [[1, 2, 3], [4, 5, 6]],
-    "rcov": [1, 2],
-    "arad": [1, 2],
+    "rcov": [0, 0],                                            # negative NAN         
+    "arad": [0, 0],                                            # negative yes!         
     
     ##### pair parameters
     # "c6matrix": [[0,0], [0,0]],
-    "theta_ss": [[0.1,0.2], [0.3,0.4]],
-    "theta_pp": [[0.5,0.6], [0.7,0.8]],
-    "theta_dd": [[0.9,0.10], [0.11,0.12]],
-    "theta_sp": [[0.13,0.14], [0.15,0.16]],
-    "theta_sd": [[0.17,0.18], [0.19,0.20]],
-    "theta_pd": [[0.21,0.22], [0.23,0.24]],
+    # "theta_ss": [[0.1,0.2], [0.3,0.4]],
+    # "theta_pp": [[0.5,0.6], [0.7,0.8]],
+    # "theta_dd": [[0.9,0.10], [0.11,0.12]],
+    # "theta_sp": [[0.13,0.14], [0.15,0.16]],
+    # "theta_sd": [[0.17,0.18], [0.19,0.20]],
+    # "theta_pd": [[0.21,0.22], [0.23,0.24]],
     
-    "zeta_ss": [[0,0], [0,0]],
-    "zeta_pp": [[0,0], [0,0]],
-    "zeta_dd": [[0,0], [0,0]],
-    "zeta_sp": [[0,0], [0,0]],
-    "zeta_sd": [[0,0], [0,0]],
-    "zeta_pd": [[0,0], [0,0]],
+    # "zeta_ss": [[0,0], [0,0]],
+    # "zeta_pp": [[0,0], [0,0]],
+    # "zeta_dd": [[0,0], [0,0]],
+    # "zeta_sp": [[0,0], [0,0]],
+    # "zeta_sd": [[0,0], [0,0]],
+    # "zeta_pd": [[0,0], [0,0]],
     
 }
 # make all values tensors and requires_grad = True
@@ -172,8 +171,11 @@ calc = dxtb.Calculator(
 )
 
 # Calculate energy and forces using autograd
+charge = -1
+spin = 1
+
 pos = positions.clone().requires_grad_(True)
-energy = calc.energy(pos, chrg=charge, spin=0)
+energy = calc.energy(pos, chrg=charge, spin=spin)
 
 # Calculate forces as negative gradient of energy
 (g,) = torch.autograd.grad(energy, pos, grad_outputs=torch.ones_like(energy), retain_graph=True, create_graph=True)

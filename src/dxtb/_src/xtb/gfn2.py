@@ -143,7 +143,8 @@ class GFN2Hamiltonian(BaseHamiltonian):
         if rcov_peratom is not None:
             assert rcov_peratom.shape == rcov.shape, f"rcov_peratom.shape: {rcov_peratom.shape}, rcov.shape: {rcov.shape}"
             rcov = rcov_peratom + rcov
-
+            rcov = torch.nn.functional.relu(rcov)
+            
         if numbers.shape != rcov.shape:
             raise ValueError(
                 f"Shape of covalent radii {rcov.shape} is not consistent with "
@@ -350,7 +351,12 @@ class GFN2Hamiltonian(BaseHamiltonian):
         zi = zi_ori_shell + zi
         zj = zj_ori_shell + zj
         
-        
+        # Ensure zi and zj are non-negative to prevent issues with sqrt using softplus
+        print(f'applying softplus to zi and zj')
+        zi = torch.nn.functional.relu(zi)
+        zj = torch.nn.functional.relu(zj)
+        # print(f'After softplus, zi: {zi}, zj: {zj}')
+
         numerator = torch.sqrt((zi) * (zj)) # this is where the problem is
         denominator = zi + zj
 

@@ -249,6 +249,12 @@ class InteractionList(ComponentList[Interaction]):
             Potential vector for each orbital partial charge.
         """
 
+        def check_for_nan(tensor: Tensor, tensor_name: str) -> None:
+            """Check if a tensor contains NaN values and raise an error if it does."""
+            if torch.isnan(tensor).any():
+                raise ValueError(f"{tensor_name} tensor contains NaN values.")
+
+
         # create empty potential
         pot = Potential(
             torch.zeros_like(charges.mono),
@@ -261,11 +267,17 @@ class InteractionList(ComponentList[Interaction]):
         if len(self.components) <= 0:
             return pot
 
+
         # add up potentials from all interactions
         for interaction in self.components:
+            # print(f"interaction label: {interaction.label}")
+            
             p = interaction.get_potential(
                 cache[interaction.label], charges, ihelp
             )
+            
+            check_for_nan(p.mono, f"p.mono for {interaction.label}")
+            
             pot += p
 
         return pot

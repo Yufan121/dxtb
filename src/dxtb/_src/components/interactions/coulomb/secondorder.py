@@ -741,6 +741,9 @@ def coulomb_matrix_atom(
     h_peratom = hubbard_peratom
     assert h_peratom.shape == h.shape, f"{h_peratom.shape} != {h.shape}"
     h = h + h_peratom
+    
+    ### Yufan: enforce h as + with softplus
+    h = torch.nn.functional.relu(h)
 
     dist = storch.cdist(positions, positions, p=2)
 
@@ -849,6 +852,15 @@ def coulomb_matrix_shell(
     Tensor
         Coulomb matrix.
     """
+    
+    def check_for_nan(tensor: Tensor, tensor_name: str) -> None:
+        """Check if a tensor contains NaN values and raise an error if it does."""
+        if torch.isnan(tensor).any():
+            raise ValueError(f"{tensor_name} tensor contains NaN values.")
+
+    
+    
+    
     dd: DD = {"device": positions.device, "dtype": positions.dtype}
     zero = torch.tensor(0.0, **dd)
     eps = torch.tensor(torch.finfo(positions.dtype).eps, **dd)
@@ -880,7 +892,8 @@ def coulomb_matrix_shell(
     h = lh * (h + h_peratom)
     
     
-    
+    ### Yufan: enforce h as + with softplus
+    h = torch.nn.functional.relu(h)
     
     
 
@@ -910,8 +923,14 @@ def coulomb_matrix_shell(
     avg = torch.where(mask, average(h + eps), eps)
 
     # Eq.26: Coulomb matrix
-    tmp = dist_gexp + torch.where(mask, torch.pow(avg, -gexp), eps)
-    return torch.where(mask, 1.0 / torch.pow(tmp, 1.0 / gexp), zero)
+    tmp = dist_gexp + torch.where(mask, torch.pow(avg, -gexp), eps)     # avg cannot be negative
+    
+    output = torch.where(mask, 1.0 / torch.pow(tmp, 1.0 / gexp), zero)
+    
+    check_for_nan(output, "ES2.mat")
+    
+    
+    return output
 
 
 def coulomb_matrix_shell_gradient(
