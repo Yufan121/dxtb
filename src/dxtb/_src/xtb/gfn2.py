@@ -352,7 +352,7 @@ class GFN2Hamiltonian(BaseHamiltonian):
         zj = zj_ori_shell + zj
         
         # Ensure zi and zj are non-negative to prevent issues with sqrt using softplus
-        print(f'applying softplus to zi and zj')
+        # print(f'applying softplus to zi and zj')
         zi = torch.nn.functional.relu(zi)
         zj = torch.nn.functional.relu(zj)
         # print(f'After softplus, zi: {zi}, zj: {zj}')

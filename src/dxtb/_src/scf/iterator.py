@@ -179,8 +179,8 @@ def get_refocc(
     # Obtain the reference occupation and total number of electrons
     nel = torch.sum(n0, -1, keepdim=True) - chrg
 
-    print(f"nel: {nel}")
-    print(f"spin: {spin}")
+    # print(f"nel: {nel}")
+    # print(f"spin: {spin}")
     
     # get alpha and beta electrons and occupation
     nab = filling.get_alpha_beta_occupation(nel, spin)

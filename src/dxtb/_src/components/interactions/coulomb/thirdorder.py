@@ -542,8 +542,8 @@ def new_es3(
         predicted_energy_peratom = None
         
         
-    if shell_scale_peratom is not None:
-        print(f"shell_scale_peratom: {shell_scale_peratom.shape}")
+    # if shell_scale_peratom is not None:
+    #     print(f"shell_scale_peratom: {shell_scale_peratom.shape}")
         
     return ES3(hubbard_derivs, shell_scale=shell_scale, 
                # Yufan added

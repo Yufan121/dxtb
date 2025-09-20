@@ -547,7 +547,7 @@ class BaseHamiltonian(HamiltonianABC, TensorLike):
             hcore_shell = hcore_shell
 
 
-        print(f"hcore_shell.shape: {hcore_shell.shape}")
+        # print(f"hcore_shell.shape: {hcore_shell.shape}")
         # print(f"hcore_shell: {hcore_shell}")
         
         
