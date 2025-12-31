@@ -46,7 +46,7 @@ dd: DD = {"device": device, "dtype": torch.double}
 # numbers, positions = read.read(f, ftype="tm", **dd)
 # Xyz file
 # path = Path(__file__).resolve().parent / "molecules" / "capsaicin.xyz"
-path = Path(__file__).resolve().parent / "molecules" / "nicotine.xyz"
+path = Path(__file__).resolve().parent / "molecules" / "test.xyz"
 numbers, positions = read.read(path, ftype="xyz", **dd)
 # print(f'numbers: {numbers}, positions: {positions}')
 
@@ -205,8 +205,8 @@ calc = dxtb.Calculator(
 )
 
 # Calculate energy and forces using autograd
-charge = -1
-spin = 1
+charge = 1
+spin = 0
 
 pos = positions.clone().requires_grad_(True)
 energy = calc.energy(pos, chrg=charge, spin=spin)
@@ -214,6 +214,7 @@ energy = calc.energy(pos, chrg=charge, spin=spin)
 # Calculate forces as negative gradient of energy
 (g,) = torch.autograd.grad(energy, pos, grad_outputs=torch.ones_like(energy), retain_graph=True, create_graph=True)
 forces1 = -g
+
 
 dxtb.timer.print()
 time_end = time.time()
@@ -228,29 +229,31 @@ if torch.isnan(energy).any():
 
 ######################################################################
 
-# print("\n\n\nCalculating forces with Calculator method.\n")
+print("\n\n\nCalculating forces with Calculator method.\n")
 
-# time_start = time.time()
-# dxtb.timer.reset()
+time_start = time.time()
+dxtb.timer.reset()
 
-# # Reset calculator and calculate forces using built-in method
-# calc.reset()
-# pos = positions.clone().requires_grad_(True)
-# forces2 = calc.forces(pos, chrg=charge)
+# Reset calculator and calculate forces using built-in method
+calc.reset()
+pos = positions.clone().requires_grad_(True)
+forces2 = calc.forces(pos, chrg=charge)
 
-# dxtb.timer.print()
-# time_end = time.time()
-# print(f"Time taken: {time_end - time_start:.2f} seconds")
+dxtb.timer.print()
+time_end = time.time()
+print(f"Time taken: {time_end - time_start:.2f} seconds")
 
-# # Verify both methods give identical results
-# equal = torch.allclose(forces1, forces2, atol=1e-6, rtol=1e-6)
-# print("\n\nForces are equal:", equal)
+# Verify both methods give identical results
+equal = torch.allclose(forces1, forces2, atol=1e-6, rtol=1e-6)
+print("\n\nForces are equal:", equal)
 
-# # Print some statistics about the forces
-# print("\nForce statistics:")
-# print(f"Max force: {forces1.abs().max().item():.6f} Hartree/Bohr")
-# print(f"Mean force: {forces1.abs().mean().item():.6f} Hartree/Bohr")
-# print(f"RMS force: {torch.sqrt((forces1**2).mean()).item():.6f} Hartree/Bohr")
+# Print some statistics about the forces
+print("\nForce statistics:")
+print(f"Max force: {forces1.abs().max().item():.6f} Hartree/Bohr")
+print(f"Mean force: {forces1.abs().mean().item():.6f} Hartree/Bohr")
+print(f"RMS force: {torch.sqrt((forces1**2).mean()).item():.6f} Hartree/Bohr")
+
+print(f"forces1: {forces1}")
 
 # ######################################################################
 

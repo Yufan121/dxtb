@@ -23,7 +23,12 @@ Project-specific type annotations.
 from __future__ import annotations
 
 import torch
-from tad_mctc.ncoord.typing import CNFunction, CNGradFunction
+
+
+try:
+    from tad_mctc.ncoord.typing import CNFunction, CNGradFunction
+except ImportError:
+    from tad_mctc.typing import CNFunction, CNGradFunction
 
 from .builtin import TypedDict
 from .compat import Slicer
