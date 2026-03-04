@@ -100,6 +100,9 @@ class DxtbAseCalculator(AseCalculator):
         # Initialize dxtb calculator (will be created fresh each time to avoid caching issues)
         self.dxtb_calc = None
         
+        # Track positions from the last step for displacement calculation
+        self.positions_last_step = None
+        
     def calculate(
         self,
         atoms: Atoms | None = None,
@@ -124,6 +127,21 @@ class DxtbAseCalculator(AseCalculator):
         # Convert ASE atoms to torch tensors
         # Note: ASE uses Angstrom, dxtb uses Bohr (atomic units)
         positions_ase = atoms.get_positions()  # in Angstrom
+        
+        # Calculate and print coordinate shifts from last step
+        if self.positions_last_step is not None:
+            coord_shifts = positions_ase - self.positions_last_step
+            max_shift = np.linalg.norm(coord_shifts, axis=1).max()
+            rms_shift = np.sqrt(np.mean(np.linalg.norm(coord_shifts, axis=1)**2))
+            print(f"Coordinate shifts (Angstrom):")
+            print(f"  Max displacement: {max_shift:.6f}")
+            print(f"  RMS displacement: {rms_shift:.6f}")
+        else:
+            print("First step - no previous positions to compare")
+        
+        # Store current positions for next step
+        self.positions_last_step = positions_ase.copy()
+        
         positions = numpy_to_tensor(positions_ase * AA2AU, **self.dd)  # Convert to Bohr
         
         # Get charge from atoms.info (default to 0)
@@ -173,6 +191,11 @@ class DxtbAseCalculator(AseCalculator):
                 "forces": forces_ase,
             }
         )
+
+
+
+
+
 
 
 ############################################
@@ -311,7 +334,7 @@ def main() -> int:
     print("-" * 70)
     
     try:
-        optimizer.run(fmax=0.05, steps=200)
+        optimizer.run(fmax=1e-4, steps=200)
         optimization_success = True
     except Exception as e:
         print(f"\nOptimization failed with error: {e}")
