@@ -284,11 +284,10 @@ class ES3(Interaction):
                 # Final scale = global + per-atom deltas
                 
                 
-                # use ihelp.shells_per_atom to truncate (for each atom)
-                delta_scale = []
-                for i, n_shell in enumerate(ihelp.shells_per_atom):
-                    delta_scale.append(self.shell_scale_peratom[i, :n_shell])
-                delta_scale = torch.cat(delta_scale)
+                from dxtb._src.xtb.base import _flatten_peratom_to_shell
+                delta_scale = _flatten_peratom_to_shell(
+                    self.shell_scale_peratom, ihelp.shells_per_atom
+                )
 
                 assert scale.shape == delta_scale.shape, f"{scale.shape} != {delta_scale.shape}"
                                 
@@ -318,11 +317,10 @@ class ES3(Interaction):
         # Handle predicted energy spreading from atoms to shells
         predicted_energy_shell = None
         if self.predicted_energy_peratom is not None:
-            # use ihelp.shells_per_atom to truncate (for each atom)
-            predicted_energy_shell = []
-            for i, n_shell in enumerate(ihelp.shells_per_atom):
-                predicted_energy_shell.append(self.predicted_energy_peratom[i, :n_shell])
-            predicted_energy_shell = torch.cat(predicted_energy_shell)
+            from dxtb._src.xtb.base import _flatten_peratom_to_shell
+            predicted_energy_shell = _flatten_peratom_to_shell(
+                self.predicted_energy_peratom, ihelp.shells_per_atom
+            )
             
         self.cache = ES3Cache(
             hd, shell_resolved=(self.shell_scale is not None), 

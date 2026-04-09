@@ -118,6 +118,7 @@ class Basis(TensorLike):
         ihelp: IndexHelper,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
+        batch_idx: int | None = None,
     ) -> None:
         super().__init__(device, dtype)
         self.numbers = numbers
@@ -139,14 +140,19 @@ class Basis(TensorLike):
         self.shells = par.get_elem_shells(self.unique)
 
         # Yufan added
-        self.slater_peratom = par.get_atom_param(self.unique, "slater")
+        slater_pa = par.get_atom_param(self.unique, "slater")
+        if slater_pa is not None:
+            # If batched params, slice to this molecule
+            if batch_idx is not None and slater_pa.ndim > 2:
+                natom = len(numbers)
+                slater_pa = slater_pa[batch_idx, :natom]
 
-        slater_peratom_list = [] # 获取每个原子的slater
-        for i, n_shell in enumerate(self.ihelp.shells_per_atom):
-            slater_peratom_list.append(self.slater_peratom[i, :n_shell])
-        slater_peratom_flat = torch.cat(slater_peratom_list)
-        assert slater_peratom_flat.shape == self.ihelp.shells_to_ushell.shape, f"slater_peratom_flat.shape: {slater_peratom_flat.shape}, shells_to_ushell.shape: {self.ihelp.shells_to_ushell.shape}"
-        self.slater_peratom = slater_peratom_flat   # shape (n_shells_all)
+            from dxtb._src.xtb.base import _flatten_peratom_to_shell
+            self.slater_peratom = _flatten_peratom_to_shell(
+                slater_pa, self.ihelp.shells_per_atom
+            )
+        else:
+            self.slater_peratom = None
 
         # When a CUDA device is used, the parametrization remains on CPU, even
         # when the libcint library is requested via the `force_cpu_for_libcint`
@@ -159,7 +165,8 @@ class Basis(TensorLike):
         self.valence = self.valence.to(device=self.device)
         
         # Yufan added
-        self.slater_peratom = self.slater_peratom.to(device=self.device)
+        if self.slater_peratom is not None:
+            self.slater_peratom = self.slater_peratom.to(device=self.device)
 
     def create_cgtos(self) -> tuple[list[Tensor], list[Tensor]]:
         """
@@ -702,12 +709,12 @@ class Basis(TensorLike):
                 
                 # Get per-element slater parameter
                 slater_per_element = self.slater[ushell_idx]
-                
-                # Get per-atom slater parameter  
-                slater_per_atom = self.slater_peratom[s]
-                
-                # Combined slater parameter (per-element + per-atom)
-                slater_combined = slater_per_element + slater_per_atom
+
+                # Combined slater parameter (per-element + per-atom correction)
+                if self.slater_peratom is not None:
+                    slater_combined = slater_per_element + self.slater_peratom[s]
+                else:
+                    slater_combined = slater_per_element
                 
                 # Calculate alpha and coeff using combined slater
                 alpha, coeff = slater_to_gauss(

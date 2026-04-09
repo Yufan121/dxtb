@@ -114,7 +114,9 @@ class ParamGetterMixin:
             return node.value
 
         if unwrapped and isinstance(node, ParameterModule):
-            return node.param + self.atom_param[k]
+            if self.atom_param is not None and k in self.atom_param:
+                return node.param + self.atom_param[k]
+            return node.param
         return node
 
     # Recursively set differentiable (requires_grad=True) for the parameter(s)
@@ -355,8 +357,10 @@ class ParamElementsPairsMixin(ParamShortcutMixin):
 
         # For len>1 parameters, need to truncate to equal length for the specific element
         # done in downstream functions
-    
-        # get from self.atom_param
+
+        # get from self.atom_param, return None if key not present
+        if self.atom_param is None or key not in self.atom_param:
+            return None
         return self.atom_param[key]
 
         
