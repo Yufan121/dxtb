@@ -163,11 +163,10 @@ class Interaction(Component):
         # Apply per-atom shell charge corrections if available
         if hasattr(self, 'qsh_peratom') and self.qsh_peratom is not None:            
             
-            # use ihelp.shells_per_atom to truncate (for each atom)
-            delta_qsh = []
-            for i, n_shell in enumerate(ihelp.shells_per_atom):
-                delta_qsh.append(self.qsh_peratom[i, :n_shell])
-            delta_qsh = torch.cat(delta_qsh)
+            from dxtb._src.xtb.base import _flatten_peratom_to_shell
+            delta_qsh = _flatten_peratom_to_shell(
+                self.qsh_peratom, ihelp.shells_per_atom
+            )
 
             assert delta_qsh.shape == qsh.shape, f"{delta_qsh.shape} != {qsh.shape}"
 
@@ -357,11 +356,10 @@ class Interaction(Component):
         # Apply per-atom shell charge corrections if available
         if hasattr(self, 'qsh_peratom') and self.qsh_peratom is not None:            
             
-            # use ihelp.shells_per_atom to truncate (for each atom)
-            delta_qsh = []
-            for i, n_shell in enumerate(ihelp.shells_per_atom):
-                delta_qsh.append(self.qsh_peratom[i, :n_shell])
-            delta_qsh = torch.cat(delta_qsh)
+            from dxtb._src.xtb.base import _flatten_peratom_to_shell
+            delta_qsh = _flatten_peratom_to_shell(
+                self.qsh_peratom, ihelp.shells_per_atom
+            )
 
             assert delta_qsh.shape == qsh.shape, f"{delta_qsh.shape} != {qsh.shape}"
 

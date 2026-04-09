@@ -874,11 +874,8 @@ def coulomb_matrix_shell(
     h = ihelp.spread_uspecies_to_shell(hubbard)
     
     # get lh and h
-    # use ihelp.shells_per_atom to truncate (for each atom)
-    lh_peratom = []
-    for i, n_shell in enumerate(ihelp.shells_per_atom): 
-        lh_peratom.append(lhubbard_peratom[i, :n_shell])
-    lh_peratom = torch.cat(lh_peratom)
+    from dxtb._src.xtb.base import _flatten_peratom_to_shell
+    lh_peratom = _flatten_peratom_to_shell(lhubbard_peratom, ihelp.shells_per_atom)
     
     h_peratom = ihelp.spread_atom_to_shell(hubbard_peratom)
     

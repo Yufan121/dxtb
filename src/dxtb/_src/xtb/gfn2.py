@@ -38,7 +38,7 @@ from dxtb._src.param.base import Param
 from dxtb._src.param.module import ParameterModule, ParamModule
 from dxtb._src.typing import Any, CountingFunction, DD, Tensor
 
-from .base import PAD, BaseHamiltonian
+from .base import PAD, BaseHamiltonian, _flatten_peratom_to_shell
 
 __all__ = ["GFN2Hamiltonian"]
 
@@ -335,14 +335,9 @@ class GFN2Hamiltonian(BaseHamiltonian):
         angular2label = {0: "s", 1: "p", 2: "d", 3: "f", 4: "g"}
         angular_labels = [angular2label.get(int(ang), PAD) for ang in ushells]
 
-        z = par.get_atom_param(self.unique, "slater")  # shape: [n_shell]
-        z_list = []
-        for i, n_shell in enumerate(self.ihelp.shells_per_atom):
-            z_list.append(z[i, :n_shell])
-        z = torch.cat(z_list)
-        # assert z.shape == (self.n_shell,), f"z.shape: {z.shape}, (self.n_shell,): {self.n_shell}"
-        
-        z = z.view(-1) # 1, n_shell 
+        z = par.get_atom_param(self.unique, "slater")
+        z = _flatten_peratom_to_shell(z, self.ihelp.shells_per_atom)
+
         zi = z.unsqueeze(-1)
         zj = z.unsqueeze(-2)
         
@@ -375,12 +370,36 @@ class GFN2Hamiltonian(BaseHamiltonian):
         zmat = storch.pow(2 * safe_fraction, wexp) # (2*sqrt(z1 z2) ) /  z1 + z2
 
         shell_to_ushell = self.ihelp.shells_to_ushell   # the map
+        is_batched = shell_to_ushell.ndim == 2
+
+        if not is_batched:
+            return self._build_ksh_single(
+                shell_to_ushell, angular_labels, shell, zmat
+            )
+
+        # Batched: build per molecule, then pack
+        from tad_mctc.batch import pack
+
+        ksh_list = []
+        for b in range(shell_to_ushell.shape[0]):
+            s2u_b = shell_to_ushell[b]
+            valid = (s2u_b >= 0).sum().item()
+            s2u_valid = s2u_b[:valid]
+            zmat_b = zmat[b, :valid, :valid]
+            ksh_b = self._build_ksh_single(
+                s2u_valid, angular_labels, shell, zmat_b
+            )
+            ksh_list.append(ksh_b)
+        return pack(ksh_list, value=1.0)
+
+    def _build_ksh_single(self, shell_to_ushell, angular_labels, shell, zmat):
+        """Build ksh matrix for a single molecule."""
         len_ = len(shell_to_ushell)
         ksh = torch.ones((len_, len_), **self.dd)
-        for i, ang_i in enumerate(shell_to_ushell): # map shell to ushell, then retrieve the kij
-            ish = shell_to_ushell[i]    # ushell index
+        for i in range(len_):
+            ish = shell_to_ushell[i]
             ang_i = angular_labels[ish]
-            for j, ang_j in enumerate(shell_to_ushell):
+            for j in range(len_):
                 jsh = shell_to_ushell[j]
                 ang_j = angular_labels[jsh]
                 key1 = f"{ang_i}{ang_j}"
@@ -404,7 +423,7 @@ class GFN2Hamiltonian(BaseHamiltonian):
                         )
                     else:
                         kij = 1.0
-                ksh[i, j] = kij * zmat[i, j] # kij is k_ll' in eq 16
+                ksh[i, j] = kij * zmat[i, j]
         return ksh
 
     def get_gradient(
