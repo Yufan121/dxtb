@@ -140,6 +140,7 @@ class BaseIntDriverPytorch(PytorchImplementation, IntDriver):
                     ihelp,
                     dtype=self.dtype,
                     device=self.device,
+                    batch_idx=_batch,
                 )
 
                 self._basis_batch.append(bas)
