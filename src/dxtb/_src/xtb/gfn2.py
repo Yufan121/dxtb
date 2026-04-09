@@ -221,19 +221,14 @@ class GFN2Hamiltonian(BaseHamiltonian):
         z = par.get_elem_param(self.unique, "slater", pad_val=PAD)
         zi = z.unsqueeze(-1)
         zj = z.unsqueeze(-2)
-        numerator = torch.sqrt(zi * zj)
+        numerator = torch.sqrt(zi * zj + 1e-30)  # eps avoids sqrt(0) backward NaN
         denominator = zi + zj
 
-        # 对分母为0的位置，直接令结果为0（或你需要的其它值）
-        safe_fraction = torch.where(
-            denominator == 0,
-            torch.zeros_like(denominator),  # 或 torch.ones_like(denominator) 取决于你的物理需求
-            numerator / denominator
-        )
-        # Guard: pow(0, 0.5) is fine forward (=0), but backward is NaN
-        # (d/dx x^0.5 = 0.5 * x^{-0.5} → inf at x=0). Use small eps for
-        # padded entries where safe_fraction == 0.
-        _sf = torch.where(safe_fraction == 0, torch.tensor(1e-30, **self.dd), safe_fraction)
+        # Safe division + pow: avoid backward NaN from torch.where pattern
+        denom_safe = torch.where(denominator == 0, torch.ones_like(denominator), denominator)
+        safe_fraction = torch.where(denominator == 0, torch.zeros_like(numerator), numerator / denom_safe)
+
+        _sf = torch.where(safe_fraction == 0, torch.ones_like(safe_fraction), safe_fraction)
         zmat = storch.pow(2 * _sf, wexp)
         zmat = torch.where(safe_fraction == 0, torch.zeros_like(zmat), zmat)
 
@@ -355,25 +350,20 @@ class GFN2Hamiltonian(BaseHamiltonian):
         # print(f'applying softplus to zi and zj')
         zi = torch.nn.functional.relu(zi)
         zj = torch.nn.functional.relu(zj)
-        # print(f'After softplus, zi: {zi}, zj: {zj}')
 
-        numerator = torch.sqrt((zi) * (zj)) # this is where the problem is
+        # Guard: sqrt(0) backward is inf. Add eps to avoid.
+        _zij = zi * zj + 1e-30
+        numerator = torch.sqrt(_zij)
         denominator = zi + zj
 
-        # 对分母为0的位置，直接令结果为0（或你需要的其它值）
-        safe_fraction = torch.where(
-            denominator == 0,
-            torch.zeros_like(denominator),  # 或 torch.ones_like(denominator) 取决于你的物理需求
-            numerator / denominator
-        )
+        # Safe division: avoid div-by-zero backward (torch.where computes
+        # gradients for BOTH branches). Replace zero denominator with 1.0
+        # BEFORE division, then mask result to zero.
+        denom_safe = torch.where(denominator == 0, torch.ones_like(denominator), denominator)
+        safe_fraction = torch.where(denominator == 0, torch.zeros_like(numerator), numerator / denom_safe)
 
-        # # 避免分母为0导致反向传播nan
-        # denominator_safe = denominator.clone()
-        # denominator_safe[denominator_safe == 0] = 1.0  # 0的地方设为1，防止除0
-        # safe_fraction = numerator / denominator_safe
-        # safe_fraction = safe_fraction * (denominator != 0)  # 0的地方强制为0
-        # Guard against NaN backward: pow(0, 0.5) backward is inf
-        _sf = torch.where(safe_fraction == 0, torch.tensor(1e-30, **self.dd), safe_fraction)
+        # Safe pow: avoid pow(0, 0.5) backward (=inf)
+        _sf = torch.where(safe_fraction == 0, torch.ones_like(safe_fraction), safe_fraction)
         zmat = storch.pow(2 * _sf, wexp)
         zmat = torch.where(safe_fraction == 0, torch.zeros_like(zmat), zmat)
 

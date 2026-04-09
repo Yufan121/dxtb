@@ -508,8 +508,10 @@ class BaseHamiltonian(HamiltonianABC, TensorLike):
         rad = rad + torch.tensor(1e-20, **self.dd)
 
         rr = storch.divide(distances, rad.unsqueeze(-1) + rad.unsqueeze(-2))
+        # Safe sqrt: avoid backward NaN from sqrt(0) through torch.where
+        rr_safe = torch.where(mask_atom_diagonal, rr + 1e-30, torch.ones_like(rr))
         rr_shell = self.ihelp.spread_atom_to_shell(
-            torch.where(mask_atom_diagonal, storch.sqrt(rr), zero),
+            torch.where(mask_atom_diagonal, storch.sqrt(rr_safe), zero),
             (-2, -1),
         )
 
