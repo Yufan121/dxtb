@@ -744,6 +744,8 @@ def coulomb_matrix_atom(
     
     ### Yufan: enforce h as + with softplus
     h = torch.nn.functional.relu(h)
+    # Guard: padded atoms have h=0 → pow(0, -gexp) = inf in backward
+    h = h + torch.tensor(1e-20, **dd)
 
     dist = storch.cdist(positions, positions, p=2)
 
@@ -891,8 +893,8 @@ def coulomb_matrix_shell(
     
     ### Yufan: enforce h as + with softplus
     h = torch.nn.functional.relu(h)
-    
-    
+    # Guard: padded atoms → pow(0, -gexp) = inf in backward
+    h = h + torch.tensor(1e-20, **dd)
 
     dist = storch.cdist(positions, positions, p=2)
 

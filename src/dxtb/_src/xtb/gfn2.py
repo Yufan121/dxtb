@@ -230,7 +230,12 @@ class GFN2Hamiltonian(BaseHamiltonian):
             torch.zeros_like(denominator),  # 或 torch.ones_like(denominator) 取决于你的物理需求
             numerator / denominator
         )
-        zmat = storch.pow(2 * safe_fraction, wexp)
+        # Guard: pow(0, 0.5) is fine forward (=0), but backward is NaN
+        # (d/dx x^0.5 = 0.5 * x^{-0.5} → inf at x=0). Use small eps for
+        # padded entries where safe_fraction == 0.
+        _sf = torch.where(safe_fraction == 0, torch.tensor(1e-30, **self.dd), safe_fraction)
+        zmat = storch.pow(2 * _sf, wexp)
+        zmat = torch.where(safe_fraction == 0, torch.zeros_like(zmat), zmat)
 
         ksh = torch.ones((len(ushells), len(ushells)), **self.dd)
         for i, ang_i in enumerate(ushells):
@@ -367,7 +372,10 @@ class GFN2Hamiltonian(BaseHamiltonian):
         # denominator_safe[denominator_safe == 0] = 1.0  # 0的地方设为1，防止除0
         # safe_fraction = numerator / denominator_safe
         # safe_fraction = safe_fraction * (denominator != 0)  # 0的地方强制为0
-        zmat = storch.pow(2 * safe_fraction, wexp) # (2*sqrt(z1 z2) ) /  z1 + z2
+        # Guard against NaN backward: pow(0, 0.5) backward is inf
+        _sf = torch.where(safe_fraction == 0, torch.tensor(1e-30, **self.dd), safe_fraction)
+        zmat = storch.pow(2 * _sf, wexp)
+        zmat = torch.where(safe_fraction == 0, torch.zeros_like(zmat), zmat)
 
         shell_to_ushell = self.ihelp.shells_to_ushell   # the map
         is_batched = shell_to_ushell.ndim == 2

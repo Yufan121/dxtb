@@ -30,5 +30,9 @@ from dxtb._src.typing import Tensor
 
 def snorm(ovlp: Tensor) -> Tensor:
     d = ovlp.diagonal(dim1=-1, dim2=-2)
-    zero = torch.tensor(0.0, dtype=d.dtype, device=d.device)
-    return torch.where(d == 0.0, zero, torch.pow(d, -0.5))
+    # Guard: padded orbitals have d=0. torch.where backward computes
+    # gradients for BOTH branches, so pow(0, -0.5) produces NaN grad.
+    # Replace zeros with 1.0 before pow, then mask result to zero.
+    d_safe = torch.where(d == 0.0, torch.ones_like(d), d)
+    result = torch.pow(d_safe, -0.5)
+    return torch.where(d == 0.0, torch.zeros_like(result), result)

@@ -503,6 +503,9 @@ class BaseHamiltonian(HamiltonianABC, TensorLike):
         rad = rad + self.rad_peratom
         
         rad = torch.nn.functional.relu(rad)
+        # Guard: padded atoms have rad=0 → division by zero in backward.
+        # Clamp to eps so backward through divide is stable.
+        rad = rad + torch.tensor(1e-20, **self.dd)
 
         rr = storch.divide(distances, rad.unsqueeze(-1) + rad.unsqueeze(-2))
         rr_shell = self.ihelp.spread_atom_to_shell(
